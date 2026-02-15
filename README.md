@@ -6,6 +6,8 @@ Team 5
 - **Samuel Jimenez Canizal** (`sj3906`)
 - **Luis Lazo** (`ll4955`)
 - **Jonathan Meneses Barraza** (`jem9707`)
+- **Dhruv Topiwala** (`dmt9779`)
+- **Vijay Gottipati** (`vg2571`)
 
 ## Project Description
 TBD
