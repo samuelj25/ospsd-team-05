@@ -1,4 +1,4 @@
-# ospsd-team-05's Project
+# Google Calendar Client
 ## Team Name
 Team 5
 
