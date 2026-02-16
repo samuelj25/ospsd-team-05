@@ -1,0 +1,19 @@
+"""Public exports for the Google Calendar client implementation package."""
+
+from google_calendar_client_impl.google_calendar_impl import (
+    GoogleCalendarClient,
+    get_client_impl,
+)
+from google_calendar_client_impl.google_calendar_impl import register as _register_client
+
+__all__ = [
+    "GoogleCalendarClient",
+    "get_client_impl",
+    "register",
+]
+
+def register() -> None:
+    """Register the Google Calendar Client implementation."""
+    _register_client()
+
+register()

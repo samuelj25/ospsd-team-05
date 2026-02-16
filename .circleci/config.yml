@@ -1,0 +1,147 @@
+version: 2.1
+
+jobs:
+  build:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - checkout
+
+      - run:
+          name: "Install UV and add to PATH"
+          command: |
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
+            source $BASH_ENV
+            uv --version
+
+      - run:
+          name: "Create venv & install dependencies via uv sync"
+          command: |
+            source $BASH_ENV
+            uv venv --python 3.11
+            source .venv/bin/activate
+            uv sync --all-packages --extra dev --verbose
+
+      - run:
+          name: "Verify Installation"
+          command: |
+            source .venv/bin/activate
+            uv tree
+            ruff --version
+            mypy --version
+            pytest --version
+            coverage --version
+
+      - persist_to_workspace:
+          root: .
+          paths:
+            - .
+
+  lint:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Ruff (lint + format check)"
+          command: |
+            source .venv/bin/activate
+            ruff check .
+            ruff format --check .
+
+  typecheck:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "MyPy (strict)"
+          command: |
+            source .venv/bin/activate
+            mypy src tests
+
+  test_unit_integration:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Create results directories"
+          command: |
+            source .venv/bin/activate
+            mkdir -p test-results/unit_integration coverage-reports
+
+      - run:
+          name: "Run unit + integration tests (skip e2e)"
+          command: |
+            source .venv/bin/activate
+            # Runs everything except e2e by default
+            pytest src/ tests/ -m "not e2e" \
+              --junitxml=test-results/unit_integration/junit.xml -v \
+              --cov=src \
+              --cov-report=term-missing \
+              --cov-report=xml:coverage-reports/coverage.xml \
+              --cov-report=html:coverage-reports/html
+
+      - store_test_results:
+          path: test-results/unit_integration
+
+      - store_artifacts:
+          path: coverage-reports
+          destination: coverage-reports
+
+      - store_artifacts:
+          path: test-results/unit_integration
+          destination: test-results/unit_integration
+
+  test_e2e_optional:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Create results directory"
+          command: |
+            source .venv/bin/activate
+            mkdir -p test-results/e2e
+
+      - run:
+          name: "Run e2e tests only if AWS env vars exist"
+          command: |
+            source .venv/bin/activate
+
+            # Require bucket at minimum; keys may be omitted if using CircleCI OIDC/IAM role,
+            # but for most setups you’ll provide keys in env vars.
+            if [ -n "${AWS_S3_BUCKET}" ] && [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
+              echo "AWS env vars detected. Running e2e tests..."
+              pytest src/ tests/ -m "e2e" \
+                --junitxml=test-results/e2e/junit.xml -v \
+                --no-cov
+            else
+              echo "AWS creds not set (need AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY). Skipping e2e."
+            fi
+
+      - store_test_results:
+          path: test-results/e2e
+
+      - store_artifacts:
+          path: test-results/e2e
+          destination: test-results/e2e
+
+workflows:
+  build_and_test:
+    jobs:
+      - build
+      - lint:
+          requires: [build]
+      - typecheck:
+          requires: [build]
+      - test_unit_integration:
+          requires: [build]
+      - test_e2e_optional:
+          requires: [test_unit_integration]

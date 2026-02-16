@@ -13,16 +13,37 @@ members = [
 ]
 
 [tool.ruff]
+line-length = 100
 target-version = "py311"
 
 [tool.ruff.lint]
 select = ["ALL"]
+ignore = [
+    "D203", # One-blank-line-before-class
+    "D212", # Multi-line-summary-first-line
+    "COM812", # Trailing comma
+    "ISC001", # Implicit string concatenation
+    "S101",   # Use of assert detected (Standard for pytest)
+    "T201",   # Print statements (Used for scaffolding/demo)
+]
 
 [tool.mypy]
 strict = true
 
 [tool.pytest.ini_options]
+pythonpath = [
+  "components/calendar_client_api/src",
+  "components/google_calendar_client_impl/src",
+]
 testpaths = ["tests", "components/*/tests"]
 
 [tool.coverage.report]
 fail_under = 80
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.15.1",
+]
