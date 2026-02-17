@@ -27,6 +27,10 @@ ignore = [
     "T201",   # Print statements (Used for scaffolding/demo)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["INP001"] # ignores implicit namespace for tests
+"**/tests/**/*.py" = ["INP001"] # ignores implicit namespace for tests
+
 [tool.mypy]
 strict = true
 

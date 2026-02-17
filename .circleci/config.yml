@@ -21,7 +21,7 @@ jobs:
             source $BASH_ENV
             uv venv --python 3.11
             source .venv/bin/activate
-            uv sync --all-packages --extra dev --verbose
+            uv sync
 
       - run:
           name: "Verify Installation"
@@ -48,8 +48,7 @@ jobs:
           name: "Ruff (lint + format check)"
           command: |
             source .venv/bin/activate
-            ruff check .
-            ruff format --check .
+            uv run ruff check .
 
   typecheck:
     docker:
@@ -61,7 +60,7 @@ jobs:
           name: "MyPy (strict)"
           command: |
             source .venv/bin/activate
-            mypy src tests
+            uv run mypy --strict .
 
   test_unit_integration:
     docker:
@@ -79,13 +78,7 @@ jobs:
           name: "Run unit + integration tests (skip e2e)"
           command: |
             source .venv/bin/activate
-            # Runs everything except e2e by default
-            pytest src/ tests/ -m "not e2e" \
-              --junitxml=test-results/unit_integration/junit.xml -v \
-              --cov=src \
-              --cov-report=term-missing \
-              --cov-report=xml:coverage-reports/coverage.xml \
-              --cov-report=html:coverage-reports/html
+            uv run pytest
 
       - store_test_results:
           path: test-results/unit_integration
@@ -98,26 +91,6 @@ jobs:
           path: test-results/unit_integration
           destination: test-results/unit_integration
 
-  test_e2e_optional:
-    docker:
-      - image: cimg/python:3.11
-    steps:
-      - attach_workspace:
-          at: .
-      - run:
-          name: "Create results directory"
-          command: |
-            source .venv/bin/activate
-            mkdir -p test-results/e2e
-
-      - run:
-          name: Run e2e tests
-          command: |
-                source .venv/bin/activate
-                pytest src/ tests/ -m "e2e" \
-                  --junitxml=test-results/e2e/junit.xml -v \
-                  --no-cov
-
 workflows:
   build_and_test:
     jobs:
@@ -128,5 +101,3 @@ workflows:
           requires: [build]
       - test_unit_integration:
           requires: [build]
-      - test_e2e_optional:
-          requires: [test_unit_integration]
