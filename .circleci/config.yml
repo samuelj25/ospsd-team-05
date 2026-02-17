@@ -111,27 +111,12 @@ jobs:
             mkdir -p test-results/e2e
 
       - run:
-          name: "Run e2e tests only if AWS env vars exist"
+          name: Run e2e tests
           command: |
-            source .venv/bin/activate
-
-            # Require bucket at minimum; keys may be omitted if using CircleCI OIDC/IAM role,
-            # but for most setups you’ll provide keys in env vars.
-            if [ -n "${AWS_S3_BUCKET}" ] && [ -n "${AWS_ACCESS_KEY_ID}" ] && [ -n "${AWS_SECRET_ACCESS_KEY}" ]; then
-              echo "AWS env vars detected. Running e2e tests..."
-              pytest src/ tests/ -m "e2e" \
-                --junitxml=test-results/e2e/junit.xml -v \
-                --no-cov
-            else
-              echo "AWS creds not set (need AWS_S3_BUCKET, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY). Skipping e2e."
-            fi
-
-      - store_test_results:
-          path: test-results/e2e
-
-      - store_artifacts:
-          path: test-results/e2e
-          destination: test-results/e2e
+                source .venv/bin/activate
+                pytest src/ tests/ -m "e2e" \
+                  --junitxml=test-results/e2e/junit.xml -v \
+                  --no-cov
 
 workflows:
   build_and_test:
