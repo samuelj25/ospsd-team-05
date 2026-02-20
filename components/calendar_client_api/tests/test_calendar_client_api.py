@@ -34,11 +34,13 @@ def test_client_get_events_contract() -> None:
     mock_client.get_events.return_value = iter([mock_event])
 
     # ACT
-    events = mock_client.get_events(start_time=start, end_time=end)
+    events = mock_client.get_events(calendar_id="primary", start_time=start, end_time=end)
     first_event = next(events, None)
 
     # ASSERT
-    mock_client.get_events.assert_called_once_with(start_time=start, end_time=end)
+    mock_client.get_events.assert_called_once_with(
+        calendar_id="primary", start_time=start, end_time=end
+    )
     assert first_event is not None
     assert first_event.id == "evt_1"
     assert first_event.title == "Team Meeting"
@@ -54,10 +56,12 @@ def test_client_get_event_contract() -> None:
     mock_client.get_event.return_value = mock_event
 
     # ACT
-    retrieved_event = mock_client.get_event(event_id="evt_specific")
+    retrieved_event = mock_client.get_event(calendar_id="primary", event_id="evt_specific")
 
     # ASSERT
-    mock_client.get_event.assert_called_once_with(event_id="evt_specific")
+    mock_client.get_event.assert_called_once_with(
+        calendar_id="primary", event_id="evt_specific"
+    )
     assert retrieved_event.id == "evt_specific"
 
 
@@ -65,14 +69,32 @@ def test_client_delete_event_contract() -> None:
     """Verifies and demonstrates the contract for the `delete_event` method."""
     # ARRANGE
     mock_client = Mock(spec=Client)
-    mock_client.delete_event.return_value = True
+    mock_client.delete_event.return_value = None
 
     # ACT
-    success = mock_client.delete_event(event_id="evt_to_delete")
+    mock_client.delete_event(calendar_id="primary", event_id="evt_to_delete")
 
     # ASSERT
-    mock_client.delete_event.assert_called_once_with(event_id="evt_to_delete")
-    assert success is True
+    mock_client.delete_event.assert_called_once_with(
+        calendar_id="primary", event_id="evt_to_delete"
+    )
+
+
+def test_client_from_raw_data_contract() -> None:
+    """Verifies and demonstrates the contract for the `from_raw_data` method."""
+    # ARRANGE
+    mock_event = Mock(spec=Event)
+    mock_event.id = "evt_from_json"
+
+    mock_client = Mock(spec=Client)
+    mock_client.from_raw_data.return_value = mock_event
+
+    # ACT
+    retrieved_event = mock_client.from_raw_data(raw_data='{"id": "evt_from_json"}')
+
+    # ASSERT
+    mock_client.from_raw_data.assert_called_once_with(raw_data='{"id": "evt_from_json"}')
+    assert retrieved_event.id == "evt_from_json"
 
 
 def test_client_get_tasks_contract() -> None:
@@ -127,25 +149,23 @@ def test_client_delete_task_contract() -> None:
     """Verifies and demonstrates the contract for the `delete_task` method."""
     # ARRANGE
     mock_client = Mock(spec=Client)
-    mock_client.delete_task.return_value = True
+    mock_client.delete_task.return_value = None
 
     # ACT
-    success = mock_client.delete_task(task_id="tsk_to_delete")
+    mock_client.delete_task(task_id="tsk_to_delete")
 
     # ASSERT
     mock_client.delete_task.assert_called_once_with(task_id="tsk_to_delete")
-    assert success is True
 
 
 def test_client_mark_task_completed_contract() -> None:
     """Verifies and demonstrates the contract for the `mark_task_completed` method."""
     # ARRANGE
     mock_client = Mock(spec=Client)
-    mock_client.mark_task_completed.return_value = True
+    mock_client.mark_task_completed.return_value = None
 
     # ACT
-    success = mock_client.mark_task_completed(task_id="tsk_to_complete")
+    mock_client.mark_task_completed(task_id="tsk_to_complete")
 
     # ASSERT
     mock_client.mark_task_completed.assert_called_once_with(task_id="tsk_to_complete")
-    assert success is True

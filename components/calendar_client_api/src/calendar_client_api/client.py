@@ -7,34 +7,58 @@ from datetime import datetime
 from calendar_client_api.event import Event
 from calendar_client_api.task import Task
 
-__all__ = ["Client", "get_client"]
-
 class Client(ABC):
     """Abstract base class representing a calendar client for calendar operations."""
 
     @abstractmethod
-    def get_event(self, event_id: str) -> Event:
-        """Fetch event by ID."""
+    def get_event(self, calendar_id: str, event_id: str) -> Event:
+        """Fetch event by ID from a specific calendar."""
         raise NotImplementedError
 
     @abstractmethod
-    def delete_event(self, event_id: str) -> bool:
-        """Delete event by ID."""
+    def create_event(self, calendar_id: str, event: Event) -> Event:
+        """Create a new event in a specific calendar."""
         raise NotImplementedError
 
     @abstractmethod
-    def get_events(self, start_time: datetime, end_time: datetime) -> Iterator[Event]:
-        """Fetch all events."""
+    def update_event(self, calendar_id: str, event: Event) -> Event:
+        """Update an existing event in a specific calendar."""
         raise NotImplementedError
 
-    # Kinda redundant
+    @abstractmethod
+    def delete_event(self, calendar_id: str, event_id: str) -> None:
+        """Delete event by ID from a specific calendar."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_events(
+        self, calendar_id: str, start_time: datetime, end_time: datetime
+    ) -> Iterator[Event]:
+        """Fetch all events from a specific calendar."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def from_raw_data(self, raw_data: str) -> Event:
+        """Construct an Event object from raw JSON data."""
+        raise NotImplementedError
+
     @abstractmethod
     def get_task(self, task_id: str) -> Task:
         """Fetch task by ID."""
         raise NotImplementedError
 
     @abstractmethod
-    def delete_task(self, task_id: str) -> bool:
+    def create_task(self, task: Task) -> Task:
+        """Create a new task."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def update_task(self, task: Task) -> Task:
+        """Update an existing task."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def delete_task(self, task_id: str) -> None:
         """Delete task by ID."""
         raise NotImplementedError
 
@@ -44,7 +68,7 @@ class Client(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def mark_task_completed(self, task_id: str) -> bool:
+    def mark_task_completed(self, task_id: str) -> None:
         """Mark a task as completed."""
         raise NotImplementedError
 

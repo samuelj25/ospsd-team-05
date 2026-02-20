@@ -35,7 +35,9 @@ def test_google_client_get_events_scaffold_returns_iterator() -> None:
     start = datetime(2026, 2, 16, 9, 0, tzinfo=UTC)
     end = datetime(2026, 2, 16, 10, 0, tzinfo=UTC)
 
-    events_iter = client.get_events(start_time=start, end_time=end)
+    events_iter = client.get_events(
+        calendar_id="primary", start_time=start, end_time=end
+    )
 
     assert hasattr(events_iter, "__iter__")
     assert list(events_iter) == []
