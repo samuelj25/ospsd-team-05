@@ -7,6 +7,7 @@ from datetime import datetime
 from calendar_client_api.event import Event
 from calendar_client_api.task import Task
 
+
 class Client(ABC):
     """Abstract base class representing a calendar client for calendar operations."""
 

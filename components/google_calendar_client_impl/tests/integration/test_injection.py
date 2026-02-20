@@ -1,7 +1,8 @@
 """Test verifies client implementation properly registers with API via dependency injection."""
 
 import calendar_client_api
-import google_calendar_client_impl  # type: ignore # pylint: disable=unused-import # noqa: F401
+
+import google_calendar_client_impl  # pylint: disable=unused-import # noqa: F401
 
 
 def test_dependency_injection_works() -> None:
