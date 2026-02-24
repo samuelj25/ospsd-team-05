@@ -15,9 +15,17 @@ class GoogleCalendarClient(calendar_client_api.Client):
     calendar_client_api.Client interface and type-check under mypy --strict.
     """
 
-    def __init__(self) -> None:
-        """Initialize the Google Calendar client."""
+    def __init__(self, calendar_id: str = "primary") -> None:
+        """
+        Initialize the Google Calendar client.
+
+        Args:
+            calendar_id: The Google Calendar ID to operate on.
+                         Defaults to ``"primary"``.
+
+        """
         super().__init__()
+        self.calendar_id = calendar_id
 
     def connect(self) -> None:
         """
@@ -36,38 +44,37 @@ class GoogleCalendarClient(calendar_client_api.Client):
         else:
             print(f"Using credentials from: {creds_path}")
 
-    def get_event(self, calendar_id: str, event_id: str) -> calendar_client_api.Event:
-        """Return an event by ID from a specific calendar."""
-        _ = (calendar_id, event_id)
+    def get_event(self, event_id: str) -> calendar_client_api.Event:
+        """Return an event by ID from the configured calendar."""
+        _ = (self.calendar_id, event_id)
         raise NotImplementedError
 
     def create_event(
-        self, calendar_id: str, event: calendar_client_api.Event
+        self, event: calendar_client_api.Event
     ) -> calendar_client_api.Event:
-        """Create a new event in a specific calendar."""
-        _ = (calendar_id, event)
+        """Create a new event in the configured calendar."""
+        _ = (self.calendar_id, event)
         raise NotImplementedError
 
     def update_event(
-        self, calendar_id: str, event: calendar_client_api.Event
+        self, event: calendar_client_api.Event
     ) -> calendar_client_api.Event:
-        """Update an existing event in a specific calendar."""
-        _ = (calendar_id, event)
+        """Update an existing event in the configured calendar."""
+        _ = (self.calendar_id, event)
         raise NotImplementedError
 
-    def delete_event(self, calendar_id: str, event_id: str) -> None:
-        """Delete an event by ID from a specific calendar."""
-        _ = (calendar_id, event_id)
+    def delete_event(self, event_id: str) -> None:
+        """Delete an event by ID from the configured calendar."""
+        _ = (self.calendar_id, event_id)
         raise NotImplementedError
 
     def get_events(
         self,
-        calendar_id: str,
         start_time: datetime,
         end_time: datetime,
     ) -> Iterator[calendar_client_api.Event]:
-        """Yield events in the provided time window from a specific calendar."""
-        _ = (calendar_id, start_time, end_time)
+        """Yield events in the provided time window from the configured calendar."""
+        _ = (self.calendar_id, start_time, end_time)
         return iter(())
 
     def from_raw_data(self, raw_data: str) -> calendar_client_api.Event:
