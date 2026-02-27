@@ -34,12 +34,12 @@ def test_client_get_events_contract() -> None:
     mock_client.get_events.return_value = iter([mock_event])
 
     # ACT
-    events = mock_client.get_events(calendar_id="primary", start_time=start, end_time=end)
+    events = mock_client.get_events(start_time=start, end_time=end)
     first_event = next(events, None)
 
     # ASSERT
     mock_client.get_events.assert_called_once_with(
-        calendar_id="primary", start_time=start, end_time=end
+        start_time=start, end_time=end
     )
     assert first_event is not None
     assert first_event.id == "evt_1"
@@ -56,11 +56,11 @@ def test_client_get_event_contract() -> None:
     mock_client.get_event.return_value = mock_event
 
     # ACT
-    retrieved_event = mock_client.get_event(calendar_id="primary", event_id="evt_specific")
+    retrieved_event = mock_client.get_event(event_id="evt_specific")
 
     # ASSERT
     mock_client.get_event.assert_called_once_with(
-        calendar_id="primary", event_id="evt_specific"
+        event_id="evt_specific"
     )
     assert retrieved_event.id == "evt_specific"
 
@@ -72,11 +72,11 @@ def test_client_delete_event_contract() -> None:
     mock_client.delete_event.return_value = None
 
     # ACT
-    mock_client.delete_event(calendar_id="primary", event_id="evt_to_delete")
+    mock_client.delete_event(event_id="evt_to_delete")
 
     # ASSERT
     mock_client.delete_event.assert_called_once_with(
-        calendar_id="primary", event_id="evt_to_delete"
+        event_id="evt_to_delete"
     )
 
 

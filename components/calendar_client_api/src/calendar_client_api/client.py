@@ -12,30 +12,30 @@ class Client(ABC):
     """Abstract base class representing a calendar client for calendar operations."""
 
     @abstractmethod
-    def get_event(self, calendar_id: str, event_id: str) -> Event:
-        """Fetch event by ID from a specific calendar."""
+    def get_event(self, event_id: str) -> Event:
+        """Fetch event by ID."""
         raise NotImplementedError
 
     @abstractmethod
-    def create_event(self, calendar_id: str, event: Event) -> Event:
-        """Create a new event in a specific calendar."""
+    def create_event(self, event: Event) -> Event:
+        """Create a new event."""
         raise NotImplementedError
 
     @abstractmethod
-    def update_event(self, calendar_id: str, event: Event) -> Event:
-        """Update an existing event in a specific calendar."""
+    def update_event(self, event: Event) -> Event:
+        """Update an existing event."""
         raise NotImplementedError
 
     @abstractmethod
-    def delete_event(self, calendar_id: str, event_id: str) -> None:
-        """Delete event by ID from a specific calendar."""
+    def delete_event(self, event_id: str) -> None:
+        """Delete event by ID."""
         raise NotImplementedError
 
     @abstractmethod
     def get_events(
-        self, calendar_id: str, start_time: datetime, end_time: datetime
+        self, start_time: datetime, end_time: datetime
     ) -> Iterator[Event]:
-        """Fetch all events from a specific calendar."""
+        """Fetch all events within a time range."""
         raise NotImplementedError
 
     @abstractmethod
