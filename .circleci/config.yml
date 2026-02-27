@@ -10,7 +10,7 @@ jobs:
       - run:
           name: "Install UV and add to PATH"
           command: |
-            curl -LsSf https://astral.sh/uv/install.sh | sh
+            curl -LsSf https://astral.sh/uv/install.sh | sh || exit 1
             echo 'export PATH="$HOME/.local/bin:$PATH"' >> $BASH_ENV
             source $BASH_ENV
             uv --version
@@ -72,13 +72,20 @@ jobs:
           name: "Create results directories"
           command: |
             source .venv/bin/activate
-            mkdir -p test-results/unit_integration coverage-reports
+            mkdir -p test-results/unit_integration coverage-reports/htmlcov
 
       - run:
-          name: "Run unit + integration tests (skip e2e)"
+          name: "Run unit + integration tests with coverage"
           command: |
             source .venv/bin/activate
             uv run pytest
+
+      - run:
+          name: "Coverage summary"
+          when: always
+          command: |
+            source .venv/bin/activate
+            uv run coverage report || true
 
       - store_test_results:
           path: test-results/unit_integration

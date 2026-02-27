@@ -15,9 +15,17 @@ class GoogleCalendarClient(calendar_client_api.Client):
     calendar_client_api.Client interface and type-check under mypy --strict.
     """
 
-    def __init__(self) -> None:
-        """Initialize the Google Calendar client."""
+    def __init__(self, calendar_id: str = "primary") -> None:
+        """
+        Initialize the Google Calendar client.
+
+        Args:
+            calendar_id: The Google Calendar ID to operate on.
+                         Defaults to ``"primary"``.
+
+        """
         super().__init__()
+        self.calendar_id = calendar_id
 
     def connect(self) -> None:
         """
@@ -36,23 +44,62 @@ class GoogleCalendarClient(calendar_client_api.Client):
         else:
             print(f"Using credentials from: {creds_path}")
 
+    def get_event(self, event_id: str) -> calendar_client_api.Event:
+        """Return an event by ID from the configured calendar."""
+        _ = (self.calendar_id, event_id)
+        raise NotImplementedError
+
+    def create_event(
+        self, event: calendar_client_api.Event
+    ) -> calendar_client_api.Event:
+        """Create a new event in the configured calendar."""
+        _ = (self.calendar_id, event)
+        raise NotImplementedError
+
+    def update_event(
+        self, event: calendar_client_api.Event
+    ) -> calendar_client_api.Event:
+        """Update an existing event in the configured calendar."""
+        _ = (self.calendar_id, event)
+        raise NotImplementedError
+
+    def delete_event(self, event_id: str) -> None:
+        """Delete an event by ID from the configured calendar."""
+        _ = (self.calendar_id, event_id)
+        raise NotImplementedError
+
     def get_events(
         self,
         start_time: datetime,
         end_time: datetime,
     ) -> Iterator[calendar_client_api.Event]:
-        """Yield events in the provided time window."""
-        _ = (start_time, end_time)
+        """Yield events in the provided time window from the configured calendar."""
+        _ = (self.calendar_id, start_time, end_time)
         return iter(())
 
-    def get_event(self, event_id: str) -> calendar_client_api.Event:
-        """Return an event by ID."""
-        _ = event_id
+    def from_raw_data(self, raw_data: str) -> calendar_client_api.Event:
+        """Construct an Event object from raw JSON data."""
+        _ = raw_data
         raise NotImplementedError
 
-    def delete_event(self, event_id: str) -> bool:
-        """Delete an event by ID."""
-        _ = event_id
+    def get_task(self, task_id: str) -> calendar_client_api.Task:
+        """Return a task by ID."""
+        _ = task_id
+        raise NotImplementedError
+
+    def create_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
+        """Create a new task."""
+        _ = task
+        raise NotImplementedError
+
+    def update_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
+        """Update an existing task."""
+        _ = task
+        raise NotImplementedError
+
+    def delete_task(self, task_id: str) -> None:
+        """Delete a task by ID."""
+        _ = task_id
         raise NotImplementedError
 
     def get_tasks(
@@ -64,17 +111,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         _ = (start_time, end_time)
         raise NotImplementedError
 
-    def get_task(self, task_id: str) -> calendar_client_api.Task:
-        """Return a task by ID."""
-        _ = task_id
-        raise NotImplementedError
-
-    def delete_task(self, task_id: str) -> bool:
-        """Delete a task by ID."""
-        _ = task_id
-        raise NotImplementedError
-
-    def mark_task_completed(self, task_id: str) -> bool:
+    def mark_task_completed(self, task_id: str) -> None:
         """Mark a task as completed."""
         _ = task_id
         raise NotImplementedError

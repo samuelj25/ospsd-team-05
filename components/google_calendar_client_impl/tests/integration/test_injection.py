@@ -2,6 +2,8 @@
 
 import calendar_client_api
 
+import google_calendar_client_impl  # pylint: disable=unused-import # noqa: F401
+
 
 def test_dependency_injection_works() -> None:
     """Verify that importing the implementation package automatically registers it with the API."""

@@ -33,7 +33,7 @@ class Task(ABC):
 
     @property
     @abstractmethod
-    def description(self) -> str:
+    def description(self) -> str | None:
         """Return description of the task."""
         raise NotImplementedError
 
@@ -43,7 +43,3 @@ class Task(ABC):
         """Return whether the task is completed."""
         raise NotImplementedError
 
-# raw data?
-def get_task(task_id: str) -> Task:
-    """Return an instance of a task given its ID."""
-    raise NotImplementedError

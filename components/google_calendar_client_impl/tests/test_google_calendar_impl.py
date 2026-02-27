@@ -30,12 +30,14 @@ def test_google_client_connect_warns_when_missing_env(capsys: pytest.CaptureFixt
 
 def test_google_client_get_events_scaffold_returns_iterator() -> None:
     """Test get_events returns an iterator in scaffold."""
-    client = GoogleCalendarClient()
+    client = GoogleCalendarClient(calendar_id="primary")
 
     start = datetime(2026, 2, 16, 9, 0, tzinfo=UTC)
     end = datetime(2026, 2, 16, 10, 0, tzinfo=UTC)
 
-    events_iter = client.get_events(start_time=start, end_time=end)
+    events_iter = client.get_events(
+        start_time=start, end_time=end
+    )
 
     assert hasattr(events_iter, "__iter__")
     assert list(events_iter) == []

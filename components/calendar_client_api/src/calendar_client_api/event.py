@@ -33,17 +33,13 @@ class Event(ABC):
 
     @property
     @abstractmethod
-    def location(self) -> str:
+    def location(self) -> str | None:
         """Return location of the event."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def description(self) -> str:
+    def description(self) -> str | None:
         """Return description of the event."""
         raise NotImplementedError
 
-# Raw data?
-def get_event(event_id: str) -> Event:
-    """Return an instance of an event given its ID."""
-    raise NotImplementedError
