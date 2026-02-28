@@ -1,69 +1,101 @@
-"""Google Calendar Event Implementation."""
+"""Google Calendar Event Implementation colocated with the Google Calendar client."""
 
-from datetime import datetime
+import json
+from datetime import UTC, datetime, time
+from typing import Any
 
-import calendar_client_api
+from calendar_client_api import event
 
-_MISSING_ID_MSG = "Event must have an ID"
-_MISSING_DATETIME_MSG = "Event is missing dateTime field"
-_INVALID_START_MSG = "Invalid format for start time"
-_INVALID_END_MSG = "Invalid format for end time"
+_KEY_ID = "id"
+_KEY_SUMMARY = "summary"
+_KEY_START = "start"
+_KEY_END = "end"
+_KEY_LOCATION = "location"
+_KEY_DESCRIPTION = "description"
+_KEY_DATETIME = "dateTime"
+_KEY_DATE = "date"
+_EMPTY_TITLE = "(No Title)"
 
 
-class GoogleCalendarEvent(calendar_client_api.Event):
-    """Implementation of Event using Google Calendar API data."""
+class GoogleCalendarEvent(event.Event):
+    """Concrete implementation of the Event abstraction for Google Calendar events."""
 
-    def __init__(self, raw_data: dict[str, str | dict[str, str]]) -> None:
-        """
-        Initialize from raw Google API JSON dictionary.
+    def __init__(self, raw_data: str | dict[str, str | dict[str, str]]) -> None:
+        """Initialize the event by parsing raw JSON data from the Google Calendar API."""
+        parsed = self._parse_raw_data(raw_data)
 
-        Args:
-            raw_data: The dictionary representation of a Google Calendar event.
+        event_id = parsed.get(_KEY_ID)
+        if not event_id or not isinstance(event_id, str):
+            msg = "Event data must contain a valid 'id' field of type string."
+            raise TypeError(msg)
 
-        """
-        self._data = raw_data
+        start = parsed.get(_KEY_START)
+        if not isinstance(start, dict):
+            msg = "Event data must contain a valid 'start' field of type dictionary."
+            raise TypeError(msg)
+
+        end = parsed.get(_KEY_END)
+        if not isinstance(end, dict):
+            msg = "Event data must contain a valid 'end' field of type dictionary."
+            raise TypeError(msg)
+
+        self._id: str = event_id
+        self._title: str = parsed.get(_KEY_SUMMARY, _EMPTY_TITLE)
+        self._start_time: datetime = self._parse_datetime(start)
+        self._end_time: datetime = self._parse_datetime(end)
+        self._location: str | None = parsed.get(_KEY_LOCATION)
+        self._description: str | None = parsed.get(_KEY_DESCRIPTION)
+
+    def _parse_raw_data(self, raw_data: str | dict[str, Any]) -> dict[str, Any]:
+        """Parse raw JSON data into a structured dictionary."""
+        if isinstance(raw_data, dict):
+            return raw_data
+        try:
+            result = json.loads(raw_data)
+        except (json.JSONDecodeError, TypeError) as e:
+            msg = f"Failed to parse event data as JSON: {e}"
+            raise ValueError(msg) from e
+        if not isinstance(result, dict):
+            msg = "Parsed JSON data must be a dictionary representing the event."
+            raise TypeError(msg)
+        return result
+
+    def _parse_datetime(self, data: dict[str, Any]) -> datetime:
+        """Parse a Google Calendar start/end time from the event data."""
+        if _KEY_DATETIME in data:
+            return datetime.fromisoformat(str(data[_KEY_DATETIME]))
+        if _KEY_DATE in data:
+            d = datetime.fromisoformat(str(data[_KEY_DATE]))
+            return datetime.combine(d, time.min, tzinfo=UTC)
+        msg = "Event time data must contain either 'dateTime' or 'date' field."
+        raise ValueError(msg)
 
     @property
     def id(self) -> str:
-        """Unique identifier for the event."""
-        event_id = self._data.get("id")
-        if not event_id:
-            raise ValueError(_MISSING_ID_MSG)
-        return str(event_id)
+        """Get the unique identifier for the event."""
+        return self._id
 
     @property
     def title(self) -> str:
-        """Return title of the event."""
-        return str(self._data.get("summary", "Untitled Event"))
-
-    def _parse_datetime(self, time_dict: dict[str, str] | None) -> datetime:
-        """Parse Google Calendar's custom datetime dict."""
-        if not time_dict or "dateTime" not in time_dict:
-            raise ValueError(_MISSING_DATETIME_MSG)
-        return datetime.fromisoformat(time_dict["dateTime"])
+        """Get the title of the event."""
+        return self._title
 
     @property
     def start_time(self) -> datetime:
-        """Return start time of the event."""
-        start_data = self._data.get("start")
-        if not isinstance(start_data, dict):
-            raise TypeError(_INVALID_START_MSG)
-        return self._parse_datetime(start_data)
+        """Get the start time of the event."""
+        return self._start_time
 
     @property
     def end_time(self) -> datetime:
-        """Return end time of the event."""
-        end_data = self._data.get("end")
-        if not isinstance(end_data, dict):
-            raise TypeError(_INVALID_END_MSG)
-        return self._parse_datetime(end_data)
+        """Get the end time of the event."""
+        return self._end_time
 
     @property
     def location(self) -> str | None:
-        """Return location of the event."""
-        return str(self._data.get("location")) if "location" in self._data else None
+        """Get the location of the event."""
+        return self._location
 
     @property
     def description(self) -> str | None:
-        """Return description of the event."""
-        return str(self._data.get("description")) if "description" in self._data else None
+        """Get the description of the event."""
+        return self._description

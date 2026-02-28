@@ -73,8 +73,6 @@ class Client(ABC):
         """Mark a task as completed."""
         raise NotImplementedError
 
-    # Discuss if more
-
 def get_client() -> Client:
     """Return an instance of a calendar client."""
     raise NotImplementedError

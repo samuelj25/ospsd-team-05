@@ -79,11 +79,9 @@ def test_google_client_get_events_with_mock() -> None:
 
 
 def test_google_calendar_event_missing_id() -> None:
-    """Test ValueError is raised when id is missing from raw data."""
-    event = GoogleCalendarEvent({"summary": "no id"})
-    with pytest.raises(ValueError, match="Event must have an ID"):
-        _ = event.id
-
+    """Test TypeError is raised when id is missing from raw data."""
+    with pytest.raises(TypeError, match=r"'id'.*string"):
+        GoogleCalendarEvent({"summary": "no id"})
 
 # ---------------------------------------------------------------------------
 # MockEvent helper

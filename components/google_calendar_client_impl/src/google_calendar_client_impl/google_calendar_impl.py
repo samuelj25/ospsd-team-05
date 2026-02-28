@@ -3,7 +3,7 @@
 import json
 import os
 from collections.abc import Iterator
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import calendar_client_api
@@ -189,10 +189,14 @@ class GoogleCalendarClient(calendar_client_api.Client):
 
     def _task_to_dict(self, task: calendar_client_api.Task) -> dict[str, str]:
         """Convert standard Task to Google Tasks dict format."""
+        # Google Tasks API requires RFC 3339 with trailing Z (UTC).
+        # Convert to UTC, strip tzinfo, then format with .000Z suffix.
+        due_dt = task.end_time
+        if due_dt.tzinfo is not None:
+            due_dt = due_dt.astimezone(tz=UTC).replace(tzinfo=None)
         body: dict[str, str] = {
             "title": task.title,
-            # Google Tasks requires RFC 3339 timestamp with Z suffix
-            "due": task.end_time.isoformat() + "Z",
+            "due": due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
             "status": "completed" if task.is_completed else "needsAction",
         }
         if task.description is not None:
