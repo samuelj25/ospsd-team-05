@@ -1,7 +1,5 @@
 # Google Calendar Client Implementation
 
-# Google Calendar Client Implementation
-
 This package (`google-calendar-client-impl`) provides the complete, production-ready, concrete Google Calendar and Google Tasks implementation satisfying the abstract `calendar-client-api` interface contract. 
 
 ### Architecture & Design Philosophy
