@@ -33,6 +33,12 @@ jobs:
             pytest --version
             coverage --version
 
+      - run:
+          name: "Clean Python Cache"
+          command: |
+            find . -type d -name "__pycache__" -exec rm -rf {} +
+            find . -type f -name "*.pyc" -delete
+
       - persist_to_workspace:
           root: .
           paths:
@@ -62,7 +68,7 @@ jobs:
             source .venv/bin/activate
             uv run mypy --strict .
 
-  test_unit_integration:
+  unit_tests:
     docker:
       - image: cimg/python:3.11
     steps:
@@ -72,31 +78,90 @@ jobs:
           name: "Create results directories"
           command: |
             source .venv/bin/activate
-            mkdir -p test-results/unit_integration coverage-reports/htmlcov
+            mkdir -p test-results/unit coverage-reports/htmlcov
 
       - run:
-          name: "Run unit + integration tests with coverage"
+          name: "Run unit tests"
           command: |
             source .venv/bin/activate
-            uv run pytest
-
-      - run:
-          name: "Coverage summary"
-          when: always
-          command: |
-            source .venv/bin/activate
-            uv run coverage report || true
+            uv run pytest components/google_calendar_client_impl/tests/unit/ --junitxml=test-results/unit/results.xml
 
       - store_test_results:
-          path: test-results/unit_integration
+          path: test-results/unit
 
       - store_artifacts:
-          path: coverage-reports
-          destination: coverage-reports
+          path: test-results/unit
+          destination: test-results/unit
+
+  integration_tests:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Setup GCP Credentials"
+          command: |
+            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
+                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
+                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+            else
+                echo "Error: Base64 GCP variables are not set. Failing Step."
+                exit 1
+            fi
+      - run:
+          name: "Create results directories"
+          command: |
+            source .venv/bin/activate
+            mkdir -p test-results/integration
+
+      - run:
+          name: "Run integration tests"
+          command: |
+            source .venv/bin/activate
+            uv run pytest components/google_calendar_client_impl/tests/integration/ --no-cov --junitxml=test-results/integration/results.xml
+
+      - store_test_results:
+          path: test-results/integration
 
       - store_artifacts:
-          path: test-results/unit_integration
-          destination: test-results/unit_integration
+          path: test-results/integration
+          destination: test-results/integration
+
+  e2e_tests:
+    docker:
+      - image: cimg/python:3.11
+    steps:
+      - attach_workspace:
+          at: .
+      - run:
+          name: "Setup GCP Credentials"
+          command: |
+            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
+                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
+                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+            else
+                echo "Error: Base64 GCP variables are not set. Failing Step."
+                exit 1
+            fi
+      - run:
+          name: "Create results directories"
+          command: |
+            source .venv/bin/activate
+            mkdir -p test-results/e2e
+
+      - run:
+          name: "Run E2E tests"
+          command: |
+            source .venv/bin/activate
+            uv run pytest tests/e2e/ --no-cov --junitxml=test-results/e2e/results.xml
+
+      - store_test_results:
+          path: test-results/e2e
+
+      - store_artifacts:
+          path: test-results/e2e
+          destination: test-results/e2e
 
 workflows:
   build_and_test:
@@ -106,5 +171,9 @@ workflows:
           requires: [build]
       - typecheck:
           requires: [build]
-      - test_unit_integration:
+      - unit_tests:
           requires: [build]
+      - integration_tests:
+          requires: [unit_tests]
+      - e2e_tests:
+          requires: [integration_tests]

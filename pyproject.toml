@@ -33,6 +33,13 @@ ignore = [
 
 [tool.mypy]
 strict = true
+explicit_package_bases = true
+mypy_path = [
+    "components/calendar_client_api/src",
+    "components/google_calendar_client_impl/src",
+    "tests",
+    "components/google_calendar_client_impl/tests",
+]
 
 [[tool.mypy.overrides]]
 module = [
@@ -55,7 +62,9 @@ addopts = [
   "--cov-report=term-missing",
   "--cov-report=html:coverage-reports/htmlcov",
   "--cov-report=xml:coverage-reports/coverage.xml",
-  "--junitxml=test-results/unit_integration/results.xml",
+]
+markers = [
+    "e2e: mark test as an end-to-end test",
 ]
 
 [tool.coverage.run]
