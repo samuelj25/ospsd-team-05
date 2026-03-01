@@ -3,7 +3,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 
 

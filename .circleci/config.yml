@@ -119,7 +119,7 @@ jobs:
           name: "Run integration tests"
           command: |
             source .venv/bin/activate
-            uv run pytest components/google_calendar_client_impl/tests/integration/ --no-cov --junitxml=test-results/integration/results.xml
+            uv run pytest tests/integration/ --no-cov --junitxml=test-results/integration/results.xml
 
       - store_test_results:
           path: test-results/integration

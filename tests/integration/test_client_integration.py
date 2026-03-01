@@ -2,11 +2,10 @@
 
 from datetime import UTC, datetime, timedelta
 
-from googleapiclient.errors import HttpError
-
 from google_calendar_client_impl.event_impl import GoogleCalendarEvent
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 from google_calendar_client_impl.task_impl import GoogleCalendarTask
+from googleapiclient.errors import HttpError
 
 
 def test_get_event_parsed_abstraction(integration_live_client: GoogleCalendarClient) -> None:
