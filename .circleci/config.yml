@@ -84,7 +84,7 @@ jobs:
           name: "Run unit tests"
           command: |
             source .venv/bin/activate
-            uv run pytest components/google_calendar_client_impl/tests/unit/ --junitxml=test-results/unit/results.xml
+            uv run pytest components/google_calendar_client_impl/tests/ --junitxml=test-results/unit/results.xml
 
       - store_test_results:
           path: test-results/unit
