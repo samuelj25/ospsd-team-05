@@ -12,4 +12,6 @@ nav:
   - Home: index.md
   - Components:
     - Calendar Client API: calendar_client_api.md
-    - Google Calendar Client Impl: google_calendar_client_impl.md
+    - Google Calendar Client: google_calendar_client_impl.md
+    - Event Implementation: event_impl.md
+    - Task Implementation: task_impl.md
