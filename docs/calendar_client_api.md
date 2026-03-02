@@ -2,6 +2,13 @@
 
 This component defines the **abstract contract** for calendar operations. It contains no implementation logic and no dependencies on specific providers (like Google or Outlook).
 
+## Key Behaviors
+
+- Defines a single `Client` ABC covering full CRUD for both events and tasks.
+- Provides `Event` and `Task` ABCs as strictly-typed, read-only data contracts.
+- Exposes a `get_client()` factory function that implementations override via dependency injection.
+- Ships a custom exception hierarchy for provider-agnostic error handling.
+
 ## The Client Interface
 
 ::: calendar_client_api.client
@@ -11,30 +18,19 @@ This component defines the **abstract contract** for calendar operations. It con
 
 ## Data Models
 
-### Event (`event_impl.py` and `event.py`)
-
-A standard representation of a calendar event, abstracting away provider-specific formats. The `GoogleCalendarEvent` implementation parses raw Google Calendar API JSON data into these strictly-typed properties.
-
-* `id: str`: The unique identifier for the event.
-* `title: str`: The summary/title of the event. Defaults to `"(No Title)"` if missing.
-* `start_time: datetime`: The start time of the event, parsed as a timezone-aware `datetime` object (UTC).
-* `end_time: datetime`: The end time of the event, parsed as a timezone-aware `datetime` object (UTC).
-* `location: str | None`: The optional location string of the event.
-* `description: str | None`: The optional detailed description of the event.
-  options:
+::: calendar_client_api.event.Event
+    options:
       show_root_heading: true
       show_source: true
 
-### Task (`task_impl.py` and `task.py`)
+::: calendar_client_api.task.Task
+    options:
+      show_root_heading: true
+      show_source: true
 
-A standard representation of a calendar task/to-do item. The `GoogleCalendarTask` implementation parses raw Google Tasks API JSON data into these strictly-typed properties, handling Google's RFC 3339 timestamp requirements.
+## Exceptions
 
-* `id: str`: The unique identifier for the task.
-* `title: str`: The title of the task.
-* `start_time: datetime`: The creation/updated time of the task.
-* `end_time: datetime`: The due date/time of the task, parsed as a timezone-aware `datetime` object.
-* `description: str | None`: Optional notes or detailed description attached to the task.
-* `is_completed: bool`: Boolean flag indicating if the task status is `"completed"` or `"needsAction"`.
-  options:
+::: calendar_client_api.exceptions
+    options:
       show_root_heading: true
       show_source: true

@@ -1,41 +1,146 @@
-# Google Calendar Client
-## Team Name
-Team 5
+# Google Calendar Client: A Component-Based Calendar Integration
 
-### Team Members
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+
+A modular, type-safe Python library for interacting with Google Calendar and Google Tasks. Built with a strict separation of concerns, dependency injection, and a comprehensive automated toolchain.
+
+## Team
+
+**Team 5**
+
 - **Samuel Jimenez Canizal** (`sj3906`)
 - **Luis Lazo** (`ll4955`)
 - **Jonathan Meneses Barraza** (`jem9707`)
 - **Dhruv Topiwala** (`dmt9779`)
 - **Vijay Gottipati** (`vg2571`)
 
-## Project Description
-This repository contains a modular, type-safe Python client for Google Calendar and Tasks.
+## Architectural Philosophy
 
-The project demonstrates **Dependency Injection (DI)** by strictly separating the API contracts (`calendar_client_api`) from the concrete Google implementation (`google_calendar_client_impl`). This architecture ensures the client is easily testable and adaptable to other calendar providers in the future.
+This project follows a component-based architecture that separates interfaces from implementations to combat complexity and ensure the system is maintainable and evolvable.
 
-### Components Breakdown
+- **Interface-Implementation Separation**: Every operation is defined by an abstract contract (ABC) and fulfilled by a concrete implementation. Consumers depend only on the stable interface, never on volatile implementation details.
+- **Dependency Injection**: The implementation registers itself at import time, replacing the interface's factory function. Code that uses the client never needs to know it's talking to Google Calendar specifically.
+- **Component-Based Design**: Each component is a self-contained, installable Python package that can be developed, tested, and versioned independently.
 
-This project is separated into two primary python packages:
+## Core Components
 
-1. **`calendar_client_api`**:
-   The `calendar_client_api` acts as the interface over calendar operations. It dictates the `events` and `tasks` operations, providing strictly-typed abstract Object representations (e.g., `calendar_client_api.Event` and `calendar_client_api.Task`). It enforces Dependency Injection by utilizing a factory (`get_client()`) that must be overridden by implementations.
+The project is a `uv` workspace containing two primary packages:
 
-2. **`google_calendar_client_impl`**:
-   The `google_calendar_client_impl` is the concrete implementation. It utilizes Google's Python SDK (`google-api-python-client`) and OAuth 2.0 flow via `InstalledAppFlow` (`google-auth-oauthlib`).
-   
-   * **Authentication (`auth.py`)**: Fetches or refreshes cacheable tokens (`token.json`), relying on OAuth user-consent in the browser if no session exists.
-   * **Events (`event_impl.py`)**: Parsers translating UTC datetimes and Google's specific REST event models back into the expected API representation.
-   * **Tasks (`task_impl.py`)**: Parsers working around Google's RFC 3339 strict timestamps and parsing task status (needsAction/completed) constraints.
+1. **`calendar_client_api`**: Defines the abstract `Client`, `Event`, and `Task` base classes. This is the contract for what actions a calendar client can perform. Contains no concrete logic or provider-specific dependencies.
+2. **`google_calendar_client_impl`**: Provides `GoogleCalendarClient`, a concrete implementation backed by the Google Calendar API and Google Tasks API. Handles OAuth2 authentication, raw JSON parsing, and automatic dependency injection.
 
-### Quality and Testing Strategy
+## Project Structure
 
-This project employs professional software development lifecycles focusing heavily on Mock testing, Static Analysis, and documentation:
-* **Testing (`pytest` / `pytest-mock`)**: 
-  The test suites strictly isolate unit boundaries. By patching `googleapiclient.discovery.build`, tests do not make real network calls but assert that appropriate JSON formats are passed down, validating the parsing logic and logic constraints (e.g. testing missing 'id' errors).
-* **Static Analysis**: 
-  Code quality is strictly enforced utilizing `mypy` for typing safety and `ruff` for linting/formatting.
-* **Documentation (`mkdocs`)**: 
-  Documentation is built continuously utilizing `mkdocs` with `mkdocstrings`, pulling heavily from docstrings and Markdown components located in the `/docs` folder.
+```
+ospsd-team-05/
+├── components/
+│   ├── calendar_client_api/        # Abstract calendar client interface (ABC)
+│   │   ├── src/calendar_client_api/
+│   │   │   ├── client.py           # Client ABC with event & task operations
+│   │   │   ├── event.py            # Event ABC
+│   │   │   ├── task.py             # Task ABC
+│   │   │   └── exceptions.py       # Custom exception hierarchy
+│   │   └── tests/                  # Unit tests for the interface
+│   └── google_calendar_client_impl/ # Google Calendar implementation
+│       ├── src/google_calendar_client_impl/
+│       │   ├── google_calendar_impl.py  # Client implementation
+│       │   ├── event_impl.py            # Event JSON parser
+│       │   ├── task_impl.py             # Task JSON parser
+│       │   └── auth.py                  # OAuth 2.0 authentication
+│       └── tests/                       # Unit tests
+├── tests/                          # Cross-component tests
+│   ├── integration/                # Component integration tests
+│   └── e2e/                        # End-to-end tests
+├── docs/                           # MkDocs documentation source
+├── pyproject.toml                  # Root workspace configuration
+└── mkdocs.yml                      # Documentation configuration
+```
 
-This project is managed utilizing `uv` for lightning-fast deterministic dependency syncing, building, and running.
+## Project Setup
+
+### 1. Prerequisites
+
+- Python 3.11 or higher
+- `uv` – A fast, all-in-one Python package manager.
+
+### 2. Initial Setup
+
+1. **Install `uv`:**
+   ```bash
+   # macOS / Linux
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+2. **Clone the Repository:**
+   ```bash
+   git clone https://github.com/samuelj25/ospsd-team-05.git
+   cd ospsd-team-05
+   ```
+
+3. **Set Up Google Credentials:**
+   - Follow the [Google Cloud instructions](https://developers.google.com/calendar/api/quickstart/python) to enable the Google Calendar API and Google Tasks API.
+   - Download your OAuth 2.0 credentials and save as `credentials.json` in the project root.
+   - **Important:** Credential files contain secrets and must not be committed to version control.
+
+4. **Create and Sync the Virtual Environment:**
+   ```bash
+   uv sync --all-packages
+   ```
+
+5. **Perform Initial Authentication:**
+   Run the application once to complete the interactive OAuth flow. This opens a browser window for consent and creates a `token.json` file for subsequent runs.
+
+### 3. Environment Variables
+
+| Variable | Description |
+|---|---|
+| `GOOGLE_OAUTH_CREDENTIALS_PATH` | Path to `credentials.json` (default: `./credentials.json`) |
+| `GOOGLE_OAUTH_TOKEN_PATH` | Path to `token.json` (default: `./token.json`) |
+| `GOOGLE_CALENDAR_ID` | Calendar ID to operate on (default: `primary`) |
+
+## Development Workflow
+
+All commands should be run from the project root.
+
+### Running the Toolchain
+
+- **Linting & Formatting (Ruff):**
+  ```bash
+  uv run ruff check .
+  ```
+
+- **Static Type Checking (MyPy):**
+  ```bash
+  uv run mypy --strict .
+  ```
+
+- **Testing (Pytest):**
+  ```bash
+  uv run pytest
+  ```
+
+- **Documentation (MkDocs):**
+  ```bash
+  uv run mkdocs serve
+  ```
+  Open `http://127.0.0.1:8000` to view the documentation site.
+
+## Testing
+
+The project implements a layered testing strategy:
+
+- **Unit Tests** (`components/*/tests/`): Fast, isolated tests with mocked dependencies. No real API calls.
+- **Integration Tests** (`tests/integration/`): Verify that dependency injection works and components integrate correctly.
+- **End-to-End Tests** (`tests/e2e/`): Full workflow tests against real Google APIs using test credentials.
+
+Coverage thresholds are enforced in CI, and test results are reported to the CircleCI dashboard.
+
+```bash
+# Run all tests with coverage
+uv run pytest
+```
+
+## Continuous Integration
+
+The project uses CircleCI for automated builds. The pipeline runs static analysis (ruff, mypy), all test suites, stores test results, and reports code coverage. See `.circleci/config.yml` for the full configuration.

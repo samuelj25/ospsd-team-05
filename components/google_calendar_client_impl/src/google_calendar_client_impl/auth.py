@@ -1,10 +1,12 @@
-"""Google OAuth 2.0 authentication manager."""
+"""
+Google OAuth 2.0 authentication manager.
 
-# Handles the full OAuth lifecycle:
-# - Loading cached credentials from ``token.json``
-# - Refreshing expired access tokens
-# - Running the interactive consent flow on first use
-# - Persisting tokens for subsequent runs
+Handles the full OAuth lifecycle:
+- Loading cached credentials from ``token.json``
+- Refreshing expired access tokens
+- Running the interactive consent flow on first use
+- Persisting tokens for subsequent runs
+"""
 
 from __future__ import annotations
 
@@ -36,13 +38,19 @@ def get_credentials(
     """
     Obtain valid Google OAuth 2.0 credentials.
 
+    Acts as the primary authentication boundary for the Google API.
     The resolution order is:
-    1. If *token_path* exists, load cached credentials from it.
+
+    1. If *token_path* exists, load cached credentials via
+       ``Credentials.from_authorized_user_file``.
     2. If the loaded token is expired **and** a refresh token is available,
-       silently refresh it.
-    3. If no cached token exists (first run), launch the browser-based
-       OAuth consent flow via ``InstalledAppFlow``.
-    4. Persist the (new or refreshed) token back to *token_path*.
+       silently refresh it via ``creds.refresh(Request())`` without user
+       intervention.
+    3. If no cached token exists (first run), read client secrets from
+       *credentials_path* and launch the browser-based OAuth consent flow
+       via ``InstalledAppFlow``.
+    4. Persist the resulting credentials back to *token_path* as JSON,
+       ensuring subsequent runs are fully headless.
 
     Args:
         credentials_path: Path to the ``credentials.json`` client-secrets
