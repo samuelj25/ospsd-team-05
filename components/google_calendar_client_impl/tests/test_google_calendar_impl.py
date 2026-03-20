@@ -4,7 +4,7 @@
 
 import os
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import calendar_client_api
 import pytest
@@ -26,6 +26,23 @@ def test_google_client_connect_mocks() -> None:
         client.connect()
         assert client._service is not None
         assert client._tasks_service is not None
+
+
+def test_google_client_connect_with_credentials() -> None:
+    """Test that connect_with_credentials() builds services from externally supplied creds."""
+    expected_build_calls = 2  # once for calendar, once for tasks
+    with patch("google_calendar_client_impl.google_calendar_impl.build") as mock_build:
+        fake_creds = MagicMock()
+        client = GoogleCalendarClient()
+        client.connect_with_credentials(fake_creds)
+
+        assert mock_build.call_count == expected_build_calls
+        assert client._service is not None
+        assert client._tasks_service is not None
+        # Verify get_credentials was NOT called (external creds bypass it)
+        calls = [str(call) for call in mock_build.call_args_list]
+        assert any("calendar" in c for c in calls)
+        assert any("tasks" in c for c in calls)
 
 
 def test_google_client_connect_picks_up_calendar_id_from_env() -> None:

@@ -1,5 +1,6 @@
 """Public exports for the Google Calendar client implementation package."""
 
+from google_calendar_client_impl.auth import WebOAuthManager as WebOAuthManager
 from google_calendar_client_impl.google_calendar_impl import (
     GoogleCalendarClient as GoogleCalendarClient,
 )
@@ -12,4 +13,3 @@ def register() -> None:
     _register_client()
 
 register()
-

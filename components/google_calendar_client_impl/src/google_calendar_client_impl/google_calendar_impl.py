@@ -95,6 +95,28 @@ class GoogleCalendarClient(calendar_client_api.Client):
         self._service = build("calendar", "v3", credentials=creds)
         self._tasks_service = build("tasks", "v1", credentials=creds)
 
+    def connect_with_credentials(self, creds: Any) -> None:  # noqa: ANN401
+        """
+        Build API service objects from externally supplied credentials.
+
+        Use this method in the FastAPI service to inject per-user credentials
+        obtained from the OAuth 2.0 web flow (via ``WebOAuthManager``) rather
+        than loading them from a local ``token.json`` file.
+
+        Args:
+            creds: A ``google.oauth2.credentials.Credentials`` instance
+                   previously obtained from ``WebOAuthManager.handle_callback``
+                   or ``WebOAuthManager.get_credentials``.
+
+        """
+        env_calendar_id = os.environ.get("GOOGLE_CALENDAR_ID")
+        if env_calendar_id and self.calendar_id == "primary":
+            self.calendar_id = env_calendar_id
+
+        self._service = build("calendar", "v3", credentials=creds)
+        self._tasks_service = build("tasks", "v1", credentials=creds)
+
+
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
