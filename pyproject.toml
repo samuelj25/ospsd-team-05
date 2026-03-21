@@ -42,8 +42,10 @@ mypy_path = [
     "components/calendar_client_api/src",
     "components/google_calendar_client_impl/src",
     "components/calendar_client_service/src",
+    "components/calendar_client_adapter/src",
     "tests",
     "components/google_calendar_client_impl/tests",
+    "components/calendar_client_adapter/tests",
 ]
 
 [[tool.mypy.overrides]]
