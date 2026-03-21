@@ -21,6 +21,7 @@ packages = ["calendar_client_service_api_client"]
 line-length = 100
 target-version = "py311"
 extend = "../../pyproject.toml"
+extend-exclude = ["calendar_client_service_api_client"]
 
 [tool.ruff.lint]
 ignore = []

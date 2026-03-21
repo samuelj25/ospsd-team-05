@@ -96,26 +96,28 @@ class AdapterTask(Task):
 
 
 class ServiceAdapterClient(ApiClient):
-    def __init__(self, base_url: str, session_id: str, httpx_args: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, base_url: str, session_id: str, httpx_args: dict[str, Any] | None = None
+    ) -> None:  # noqa: E501
         super().__init__()
         self.base_url = base_url
         self.session_id = session_id
-        
+
         kwargs: dict[str, Any] = {
-            "base_url": base_url, 
-            "token": "secret-token",  # noqa: S106
-            "cookies": {"session_id": session_id}
+            "base_url": base_url,
+            "token": "secret-token",
+            "cookies": {"session_id": session_id},
         }
         if httpx_args:
             kwargs["httpx_args"] = httpx_args
-            
+
         self._client = AuthenticatedClient(**kwargs)
 
     def _handle_error(self, exc: Exception, not_found_cls: type[Exception]) -> None:
         if isinstance(exc, (CalendarOperationError, EventNotFoundError, TaskNotFoundError)):
             raise exc
         if isinstance(exc, UnexpectedStatus):
-            if exc.status_code == 404: # noqa: PLR2004
+            if exc.status_code == 404:  # noqa: PLR2004
                 raise not_found_cls("Resource not found.") from exc
             raise CalendarOperationError(f"HTTP Error: {exc.status_code}") from exc
         raise CalendarOperationError(str(exc)) from exc

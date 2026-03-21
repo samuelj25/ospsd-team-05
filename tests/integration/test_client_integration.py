@@ -160,7 +160,7 @@ def test_cleanup_functions_verify_resources_scrubbed(
     else:
         # If it didn't 404, verify the resource is "cancelled" in the raw API.
         raw_ev = (
-            integration_live_client._require_calendar_service()
+            integration_live_client._require_calendar_service()  # noqa: SLF001
             .events()
             .get(  # Needed to assert raw Google backend soft-deleted status
                 calendarId=integration_live_client.calendar_id, eventId=event.id
@@ -180,7 +180,7 @@ def test_cleanup_functions_verify_resources_scrubbed(
     else:
         # If it didn't 404, verify it was marked deleted or hidden.
         raw_t = (
-            integration_live_client._require_tasks_service()
+            integration_live_client._require_tasks_service()  # noqa: SLF001
             .tasks()
             .get(  # Needed to assert raw Google backend soft-deleted status
                 tasklist=integration_live_client.tasklist_id, task=task.id

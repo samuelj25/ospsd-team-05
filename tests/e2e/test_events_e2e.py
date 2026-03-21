@@ -61,7 +61,7 @@ def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
             assert getattr(error_caught, "status_code", 404) in (404, 400, 410)
         else:
             raw_ev = (
-                live_client._require_calendar_service()
+                live_client._require_calendar_service()  # noqa: SLF001
                 .events()
                 .get(  # Needed to assert raw Google backend soft-deleted status
                     calendarId=live_client.calendar_id, eventId=created.id
