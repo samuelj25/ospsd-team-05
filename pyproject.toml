@@ -11,6 +11,8 @@ members = [
     "components/calendar_client_api",
     "components/google_calendar_client_impl",
     "components/calendar_client_service",
+    "components/calendar_client_service_api_client",
+    "components/calendar_client_adapter",
 ]
 
 [tool.ruff]
@@ -102,4 +104,5 @@ dev = [
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.25.0",
     "httpx>=0.27.0",
+    "openapi-python-client>=0.28.3",
 ]

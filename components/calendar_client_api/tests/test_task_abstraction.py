@@ -30,8 +30,7 @@ def test_task_abstraction_comprehensive() -> None:
     assert properties["start_time"] == dt.datetime(2026, 2, 16, 9, 0, tzinfo=dt.UTC)
     assert properties["end_time"] == dt.datetime(2026, 2, 16, 10, 0, tzinfo=dt.UTC)
     assert properties["description"] == (
-        "Complete calendar_client_api interface + "
-        "google_calendar_client_impl."
+        "Complete calendar_client_api interface + google_calendar_client_impl."
     )
     assert properties["is_completed"] is False
 

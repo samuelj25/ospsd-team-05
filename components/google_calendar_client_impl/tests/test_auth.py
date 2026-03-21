@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_creds_mock(
     *,
     valid: bool = True,
@@ -42,18 +43,23 @@ def _write_dummy_token(path: Path) -> None:
 
 def _write_dummy_credentials(path: Path) -> None:
     """Write a minimal ``credentials.json`` so ``InstalledAppFlow`` can be instantiated."""
-    path.write_text(json.dumps({
-        "installed": {
-            "client_id": "test-id",
-            "client_secret": "test-secret",
-            "redirect_uris": ["http://localhost"],
-        },
-    }))
+    path.write_text(
+        json.dumps(
+            {
+                "installed": {
+                    "client_id": "test-id",
+                    "client_secret": "test-secret",
+                    "redirect_uris": ["http://localhost"],
+                },
+            }
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 class TestGetCredentialsLoadsExistingToken:
     """Scenario: ``token.json`` exists and the token is still valid."""
@@ -77,7 +83,8 @@ class TestGetCredentialsLoadsExistingToken:
         )
 
         mock_creds_cls.from_authorized_user_file.assert_called_once_with(
-            str(token_path), SCOPES,
+            str(token_path),
+            SCOPES,
         )
         assert result is valid_creds
 
@@ -136,7 +143,8 @@ class TestGetCredentialsRunsFlowWhenNoToken:
         )
 
         mock_flow_cls.from_client_secrets_file.assert_called_once_with(
-            str(creds_path), SCOPES,
+            str(creds_path),
+            SCOPES,
         )
         mock_flow_instance.run_local_server.assert_called_once_with(port=0)
         assert result is new_creds
@@ -179,7 +187,8 @@ class TestGetCredentialsCustomPaths:
         )
 
         mock_creds_cls.from_authorized_user_file.assert_called_once_with(
-            str(custom_token), SCOPES,
+            str(custom_token),
+            SCOPES,
         )
         assert result is valid_creds
 
@@ -214,7 +223,8 @@ class TestGetCredentialsEnvVarFallback:
 
         # Should have used the env-var paths
         mock_creds_cls.from_authorized_user_file.assert_called_once_with(
-            "/custom/token.json", SCOPES,
+            "/custom/token.json",
+            SCOPES,
         )
         assert result is valid_creds
 
@@ -268,8 +278,7 @@ class TestWebOAuthManagerInit:
         """Default redirect URI points to localhost when env var is absent."""
         with patch.dict("os.environ", {}, clear=False):
             # Remove if present
-            env = {k: v for k, v in __import__("os").environ.items()
-                   if k != "OAUTH_REDIRECT_URI"}
+            env = {k: v for k, v in __import__("os").environ.items() if k != "OAUTH_REDIRECT_URI"}
             with patch.dict("os.environ", env, clear=True):
                 mgr = WebOAuthManager(client_id="id", client_secret="secret")
         assert "localhost" in mgr.redirect_uri

@@ -19,7 +19,7 @@ def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
         "id": "dummy",
         "summary": "E2E Lifecycle Event Original",
         "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end.isoformat(), "timeZone": "UTC"}
+        "end": {"dateTime": end.isoformat(), "timeZone": "UTC"},
     }
 
     # 1. Create Event
@@ -37,7 +37,7 @@ def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
             "id": created.id,
             "summary": "E2E Lifecycle Event Updated",
             "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-            "end": {"dateTime": end.isoformat(), "timeZone": "UTC"}
+            "end": {"dateTime": end.isoformat(), "timeZone": "UTC"},
         }
         updated = live_client.update_event(GoogleCalendarEvent(update_data))
         assert updated.title == "E2E Lifecycle Event Updated"
@@ -60,9 +60,14 @@ def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
         if error_caught:
             assert getattr(error_caught, "status_code", 404) in (404, 400, 410)
         else:
-            raw_ev = live_client._require_calendar_service().events().get(  # noqa: SLF001 # Needed to assert raw Google backend soft-deleted status
-                calendarId=live_client.calendar_id, eventId=created.id
-            ).execute()
+            raw_ev = (
+                live_client._require_calendar_service()
+                .events()
+                .get(  # Needed to assert raw Google backend soft-deleted status
+                    calendarId=live_client.calendar_id, eventId=created.id
+                )
+                .execute()
+            )
             assert raw_ev.get("status") == "cancelled"
 
 
@@ -80,14 +85,14 @@ def test_list_events_lifecycle(live_client: GoogleCalendarClient) -> None:
         "id": "dummy",
         "summary": "E2E List Event 1",
         "start": {"dateTime": start1.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end1.isoformat(), "timeZone": "UTC"}
+        "end": {"dateTime": end1.isoformat(), "timeZone": "UTC"},
     }
 
     event_data_2: dict[str, str | dict[str, str]] = {
         "id": "dummy",
         "summary": "E2E List Event 2",
         "start": {"dateTime": start2.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end2.isoformat(), "timeZone": "UTC"}
+        "end": {"dateTime": end2.isoformat(), "timeZone": "UTC"},
     }
 
     ids_to_clean = []

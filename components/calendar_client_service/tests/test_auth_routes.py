@@ -66,7 +66,9 @@ class TestAuthLogin:
         assert response.headers["location"] == "https://google.com/auth?foo=bar"
 
     def test_calls_get_authorization_url(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Login calls get_authorization_url once."""
         client.get("/auth/login")
@@ -82,7 +84,9 @@ class TestAuthCallback:
     """Tests for GET /auth/callback."""
 
     def test_sets_session_cookie_on_success(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Callback sets a session_id cookie when the code exchange succeeds."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
@@ -94,7 +98,9 @@ class TestAuthCallback:
         assert response.cookies["session_id"] == "test-session-id"
 
     def test_returns_authenticated_true_on_success(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Callback returns authenticated=True in the body."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
@@ -106,7 +112,9 @@ class TestAuthCallback:
         assert data["session_id"] == "test-session-id"
 
     def test_returns_400_when_code_exchange_fails(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Callback returns HTTP 400 when handle_callback raises an exception."""
         mock_oauth_manager.handle_callback.side_effect = ValueError("bad code")
@@ -126,7 +134,9 @@ class TestAuthStatus:
     """Tests for GET /auth/status."""
 
     def test_unauthenticated_when_no_cookie(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Status returns authenticated=False when no session cookie is present."""
         mock_oauth_manager.is_authenticated.return_value = False
@@ -137,7 +147,9 @@ class TestAuthStatus:
         assert response.json()["authenticated"] is False
 
     def test_authenticated_when_valid_session(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Status returns authenticated=True when a valid session cookie is present."""
         mock_oauth_manager.is_authenticated.return_value = True
@@ -157,7 +169,9 @@ class TestAuthLogout:
     """Tests for POST /auth/logout."""
 
     def test_revokes_session(
-        self, client: TestClient, mock_oauth_manager: MagicMock,
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
     ) -> None:
         """Logout calls revoke_session with the session ID from the cookie."""
         response = client.post("/auth/logout", cookies={"session_id": "my-session"})

@@ -12,4 +12,5 @@ def register() -> None:
     """Register the Google Calendar Client implementation."""
     _register_client()
 
+
 register()

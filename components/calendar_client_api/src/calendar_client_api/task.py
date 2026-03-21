@@ -42,4 +42,3 @@ class Task(ABC):
     def is_completed(self) -> bool:
         """Return whether the task is completed."""
         raise NotImplementedError
-

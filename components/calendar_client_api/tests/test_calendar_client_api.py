@@ -38,9 +38,7 @@ def test_client_get_events_contract() -> None:
     first_event = next(events, None)
 
     # ASSERT
-    mock_client.get_events.assert_called_once_with(
-        start_time=start, end_time=end
-    )
+    mock_client.get_events.assert_called_once_with(start_time=start, end_time=end)
     assert first_event is not None
     assert first_event.id == "evt_1"
     assert first_event.title == "Team Meeting"
@@ -59,9 +57,7 @@ def test_client_get_event_contract() -> None:
     retrieved_event = mock_client.get_event(event_id="evt_specific")
 
     # ASSERT
-    mock_client.get_event.assert_called_once_with(
-        event_id="evt_specific"
-    )
+    mock_client.get_event.assert_called_once_with(event_id="evt_specific")
     assert retrieved_event.id == "evt_specific"
 
 
@@ -75,9 +71,7 @@ def test_client_delete_event_contract() -> None:
     mock_client.delete_event(event_id="evt_to_delete")
 
     # ASSERT
-    mock_client.delete_event.assert_called_once_with(
-        event_id="evt_to_delete"
-    )
+    mock_client.delete_event.assert_called_once_with(event_id="evt_to_delete")
 
 
 def test_client_from_raw_data_contract() -> None:

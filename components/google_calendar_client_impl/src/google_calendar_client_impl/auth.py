@@ -90,7 +90,8 @@ def get_credentials(
     # ---- 1. Try to load an existing token --------------------------------
     if Path(resolved_token).exists():
         creds = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
-            resolved_token, SCOPES,
+            resolved_token,
+            SCOPES,
         )
 
     # ---- 2 / 3. Refresh or run the consent flow -------------------------
@@ -173,17 +174,10 @@ class WebOAuthManager:
             ValueError: If any of the three required values cannot be resolved.
 
         """
-        self.client_id: str = (
-            client_id
-            or os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
-        )
-        self.client_secret: str = (
-            client_secret
-            or os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
-        )
-        self.redirect_uri: str = (
-            redirect_uri
-            or os.environ.get("OAUTH_REDIRECT_URI", "http://localhost:8000/auth/callback")
+        self.client_id: str = client_id or os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
+        self.client_secret: str = client_secret or os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
+        self.redirect_uri: str = redirect_uri or os.environ.get(
+            "OAUTH_REDIRECT_URI", "http://localhost:8000/auth/callback"
         )
 
         if not self.client_id:

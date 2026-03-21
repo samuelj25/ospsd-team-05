@@ -32,9 +32,7 @@ class Client(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_events(
-        self, start_time: datetime, end_time: datetime
-    ) -> Iterator[Event]:
+    def get_events(self, start_time: datetime, end_time: datetime) -> Iterator[Event]:
         """Fetch all events within a time range."""
         raise NotImplementedError
 
@@ -72,6 +70,7 @@ class Client(ABC):
     def mark_task_completed(self, task_id: str) -> None:
         """Mark a task as completed."""
         raise NotImplementedError
+
 
 def get_client() -> Client:
     """Return an instance of a calendar client."""

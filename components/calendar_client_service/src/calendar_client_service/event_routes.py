@@ -5,11 +5,55 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003
 from typing import Annotated
 
+from calendar_client_api.event import Event
 from fastapi import APIRouter, Depends
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient  # noqa: TC002
 
 from calendar_client_service.dependencies import get_calendar_client
 from calendar_client_service.models import EventCreate, EventResponse, EventUpdate
+
+
+class _ServiceEvent(Event):
+    def __init__(  # noqa: PLR0913
+        self,
+        e_id: str,
+        title: str,
+        start: datetime,
+        end: datetime,
+        loc: str | None,
+        desc: str | None,
+    ) -> None:
+        self._id = e_id
+        self._title = title
+        self._start = start
+        self._end = end
+        self._loc = loc
+        self._desc = desc
+
+    @property
+    def id(self) -> str:
+        return self._id
+
+    @property
+    def title(self) -> str:
+        return self._title
+
+    @property
+    def start_time(self) -> datetime:
+        return self._start
+
+    @property
+    def end_time(self) -> datetime:
+        return self._end
+
+    @property
+    def location(self) -> str | None:
+        return self._loc
+
+    @property
+    def description(self) -> str | None:
+        return self._desc
+
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -25,7 +69,18 @@ def list_events(
 
     TODO: Implement using ``client.get_events(start_time, end_time)``.
     """
-    raise NotImplementedError
+    events = client.get_events(start_time, end_time)
+    return [
+        EventResponse(
+            id=e.id,
+            title=e.title,
+            start_time=e.start_time,
+            end_time=e.end_time,
+            location=e.location,
+            description=e.description,
+        )
+        for e in events
+    ]
 
 
 @router.get("/{event_id}", response_model=EventResponse, summary="Get a single event")
@@ -38,7 +93,15 @@ def get_event(
 
     TODO: Implement using ``client.get_event(event_id)``.
     """
-    raise NotImplementedError
+    e = client.get_event(event_id)
+    return EventResponse(
+        id=e.id,
+        title=e.title,
+        start_time=e.start_time,
+        end_time=e.end_time,
+        location=e.location,
+        description=e.description,
+    )
 
 
 @router.post("", response_model=EventResponse, status_code=201, summary="Create an event")
@@ -51,7 +114,23 @@ def create_event(
 
     TODO: Build an Event object from payload fields and call ``client.create_event(event)``.
     """
-    raise NotImplementedError
+    ev = _ServiceEvent(
+        e_id="",
+        title=payload.title,
+        start=payload.start_time,
+        end=payload.end_time,
+        loc=payload.location,
+        desc=payload.description,
+    )
+    e = client.create_event(ev)
+    return EventResponse(
+        id=e.id,
+        title=e.title,
+        start_time=e.start_time,
+        end_time=e.end_time,
+        location=e.location,
+        description=e.description,
+    )
 
 
 @router.put("/{event_id}", response_model=EventResponse, summary="Update an event")
@@ -65,7 +144,23 @@ def update_event(
 
     TODO: Build an Event object and call ``client.update_event(event)``.
     """
-    raise NotImplementedError
+    ev = _ServiceEvent(
+        e_id=event_id,
+        title=payload.title,
+        start=payload.start_time,
+        end=payload.end_time,
+        loc=payload.location,
+        desc=payload.description,
+    )
+    e = client.update_event(ev)
+    return EventResponse(
+        id=e.id,
+        title=e.title,
+        start_time=e.start_time,
+        end_time=e.end_time,
+        location=e.location,
+        description=e.description,
+    )
 
 
 @router.delete("/{event_id}", status_code=204, summary="Delete an event")
@@ -78,4 +173,4 @@ def delete_event(
 
     TODO: Implement using ``client.delete_event(event_id)``.
     """
-    raise NotImplementedError
+    client.delete_event(event_id)
