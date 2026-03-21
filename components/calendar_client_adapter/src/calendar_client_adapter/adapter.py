@@ -10,6 +10,7 @@ from calendar_client_api import CalendarOperationError, EventNotFoundError, Task
 from calendar_client_api.client import Client as ApiClient
 from calendar_client_api.event import Event
 from calendar_client_api.task import Task
+
 from calendar_client_service_api_client.api.events import (
     create_event_events_post,
     delete_event_events_event_id_delete,
@@ -34,6 +35,7 @@ from calendar_client_service_api_client.models import (
     TaskCreate,
     TaskResponse,
     TaskUpdate,
+    HTTPValidationError,
 )
 
 
@@ -98,14 +100,14 @@ class AdapterTask(Task):
 class ServiceAdapterClient(ApiClient):
     def __init__(
         self, base_url: str, session_id: str, httpx_args: dict[str, Any] | None = None
-    ) -> None:
+    ) -> None:  # noqa: E501
         super().__init__()
         self.base_url = base_url
         self.session_id = session_id
 
         kwargs: dict[str, Any] = {
             "base_url": base_url,
-            "token": "secret-token",
+            "token": "secret-token",  # noqa: S106
             "cookies": {"session_id": session_id},
         }
         if httpx_args:
@@ -125,7 +127,7 @@ class ServiceAdapterClient(ApiClient):
     def get_event(self, event_id: str) -> Event:
         try:
             resp = get_event_events_event_id_get.sync(client=self._client, event_id=event_id)
-            if not resp:
+            if not resp or isinstance(resp, HTTPValidationError):
                 raise EventNotFoundError(f"Event {event_id} not found")
             return AdapterEvent(resp)
         except Exception as e:
@@ -145,7 +147,7 @@ class ServiceAdapterClient(ApiClient):
                 payload.additional_properties["description"] = event.description
 
             resp = create_event_events_post.sync(client=self._client, body=payload)
-            if not resp:
+            if not resp or isinstance(resp, HTTPValidationError):
                 raise CalendarOperationError("Failed to create event")
             return AdapterEvent(resp)
         except Exception as e:
@@ -155,6 +157,7 @@ class ServiceAdapterClient(ApiClient):
     def update_event(self, event: Event) -> Event:
         try:
             payload = EventUpdate(
+                id=event.id,
                 title=event.title,
                 start_time=event.start_time,
                 end_time=event.end_time,
@@ -167,7 +170,7 @@ class ServiceAdapterClient(ApiClient):
             resp = update_event_events_event_id_put.sync(
                 client=self._client, event_id=event.id, body=payload
             )
-            if not resp:
+            if not resp or isinstance(resp, HTTPValidationError):
                 raise EventNotFoundError(f"Event {event.id} not found")
             return AdapterEvent(resp)
         except Exception as e:
@@ -185,7 +188,7 @@ class ServiceAdapterClient(ApiClient):
             resp = list_events_events_get.sync(
                 client=self._client, start_time=start_time, end_time=end_time
             )
-            if resp:
+            if resp and not isinstance(resp, HTTPValidationError):
                 for r in resp:
                     yield AdapterEvent(r)
         except Exception as e:
@@ -199,7 +202,7 @@ class ServiceAdapterClient(ApiClient):
     def get_task(self, task_id: str) -> Task:
         try:
             resp = get_task_tasks_task_id_get.sync(client=self._client, task_id=task_id)
-            if not resp:
+            if not resp or isinstance(resp, HTTPValidationError):
                 raise TaskNotFoundError(f"Task {task_id} not found")
             return AdapterTask(resp)
         except Exception as e:
@@ -216,7 +219,7 @@ class ServiceAdapterClient(ApiClient):
                 payload.additional_properties["description"] = task.description
 
             resp = create_task_tasks_post.sync(client=self._client, body=payload)
-            if not resp:
+            if not resp or isinstance(resp, HTTPValidationError):
                 raise CalendarOperationError("Failed to create task")
             return AdapterTask(resp)
         except Exception as e:
@@ -226,7 +229,10 @@ class ServiceAdapterClient(ApiClient):
     def update_task(self, task: Task) -> Task:
         try:
             payload = TaskUpdate(
-                title=task.title, end_time=task.end_time, is_completed=task.is_completed
+                id=task.id,
+                title=task.title,
+                end_time=task.end_time,
+                is_completed=task.is_completed,
             )
             if task.description is not None:
                 payload.additional_properties["description"] = task.description
@@ -234,7 +240,7 @@ class ServiceAdapterClient(ApiClient):
             resp = update_task_tasks_task_id_put.sync(
                 client=self._client, task_id=task.id, body=payload
             )
-            if not resp:
+            if not resp or isinstance(resp, HTTPValidationError):
                 raise TaskNotFoundError(f"Task {task.id} not found")
             return AdapterTask(resp)
         except Exception as e:
@@ -252,7 +258,7 @@ class ServiceAdapterClient(ApiClient):
             resp = list_tasks_tasks_get.sync(
                 client=self._client, start_time=start_time, end_time=end_time
             )
-            if resp:
+            if resp and not isinstance(resp, HTTPValidationError):
                 for r in resp:
                     yield AdapterTask(r)
         except Exception as e:
