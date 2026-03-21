@@ -10,7 +10,6 @@ from calendar_client_api import CalendarOperationError, EventNotFoundError, Task
 from calendar_client_api.client import Client as ApiClient
 from calendar_client_api.event import Event
 from calendar_client_api.task import Task
-
 from calendar_client_service_api_client.api.events import (
     create_event_events_post,
     delete_event_events_event_id_delete,
@@ -32,10 +31,10 @@ from calendar_client_service_api_client.models import (
     EventCreate,
     EventResponse,
     EventUpdate,
+    HTTPValidationError,
     TaskCreate,
     TaskResponse,
     TaskUpdate,
-    HTTPValidationError,
 )
 
 
@@ -100,14 +99,14 @@ class AdapterTask(Task):
 class ServiceAdapterClient(ApiClient):
     def __init__(
         self, base_url: str, session_id: str, httpx_args: dict[str, Any] | None = None
-    ) -> None:  # noqa: E501
+    ) -> None:
         super().__init__()
         self.base_url = base_url
         self.session_id = session_id
 
         kwargs: dict[str, Any] = {
             "base_url": base_url,
-            "token": "secret-token",  # noqa: S106
+            "token": "secret-token",
             "cookies": {"session_id": session_id},
         }
         if httpx_args:
