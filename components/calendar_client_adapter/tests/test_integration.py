@@ -44,8 +44,8 @@ class MockBaseEvent(Event):
 
 class MockBaseTask(Task):
     def __init__(
-        self, t_id: str, title: str, start: datetime, end: datetime, is_completed: bool
-    ) -> None:  # noqa: E501, FBT001
+        self, t_id: str, title: str, start: datetime, end: datetime, is_completed: bool  # noqa: FBT001
+    ) -> None:
         self._id = t_id
         self._title = title
         self._start = start
@@ -91,8 +91,8 @@ def test_adapter_integration() -> None:
     # Use TestClient's internal transport to handle synchronous requests
     test_client = TestClient(app)
     adapter = ServiceAdapterClient(
-        "http://testserver", "fake_session", httpx_args={"transport": test_client._transport}
-    )  # noqa: E501, SLF001
+        "http://testserver", "fake_session", httpx_args={"transport": test_client._transport}  # noqa: SLF001
+    )
 
     # Test Event integration
     event = adapter.get_event("100")

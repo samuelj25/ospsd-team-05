@@ -98,7 +98,7 @@ class AdapterTask(Task):
 class ServiceAdapterClient(ApiClient):
     def __init__(
         self, base_url: str, session_id: str, httpx_args: dict[str, Any] | None = None
-    ) -> None:  # noqa: E501
+    ) -> None:
         super().__init__()
         self.base_url = base_url
         self.session_id = session_id
