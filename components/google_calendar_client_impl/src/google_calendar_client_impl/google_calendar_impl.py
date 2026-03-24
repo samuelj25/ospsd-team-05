@@ -383,8 +383,8 @@ class GoogleCalendarClient(calendar_client_api.Client):
                 svc.tasks()
                 .list(
                     tasklist=self.tasklist_id,
-                    dueMin=start_time.isoformat() + "Z",
-                    dueMax=end_time.isoformat() + "Z",
+                    dueMin=start_time.isoformat(),
+                    dueMax=end_time.isoformat(),
                     showCompleted=True,
                     pageToken=page_token,
                 )
