@@ -8,4 +8,3 @@ from calendar_client_api.exceptions import CalendarOperationError as CalendarOpe
 from calendar_client_api.exceptions import EventNotFoundError as EventNotFoundError
 from calendar_client_api.exceptions import TaskNotFoundError as TaskNotFoundError
 from calendar_client_api.task import Task as Task
-

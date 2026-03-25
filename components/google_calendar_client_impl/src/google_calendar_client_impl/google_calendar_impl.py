@@ -95,6 +95,27 @@ class GoogleCalendarClient(calendar_client_api.Client):
         self._service = build("calendar", "v3", credentials=creds)
         self._tasks_service = build("tasks", "v1", credentials=creds)
 
+    def connect_with_credentials(self, creds: Any) -> None:  # noqa: ANN401
+        """
+        Build API service objects from externally supplied credentials.
+
+        Use this method in the FastAPI service to inject per-user credentials
+        obtained from the OAuth 2.0 web flow (via ``WebOAuthManager``) rather
+        than loading them from a local ``token.json`` file.
+
+        Args:
+            creds: A ``google.oauth2.credentials.Credentials`` instance
+                   previously obtained from ``WebOAuthManager.handle_callback``
+                   or ``WebOAuthManager.get_credentials``.
+
+        """
+        env_calendar_id = os.environ.get("GOOGLE_CALENDAR_ID")
+        if env_calendar_id and self.calendar_id == "primary":
+            self.calendar_id = env_calendar_id
+
+        self._service = build("calendar", "v3", credentials=creds)
+        self._tasks_service = build("tasks", "v1", credentials=creds)
+
     # ------------------------------------------------------------------
     # Events
     # ------------------------------------------------------------------
@@ -107,10 +128,14 @@ class GoogleCalendarClient(calendar_client_api.Client):
         constructor where it is parsed and flattened into the ``Event`` interface.
         """
         svc = self._require_calendar_service()
-        response = svc.events().get(
-            calendarId=self.calendar_id,
-            eventId=event_id,
-        ).execute()
+        response = (
+            svc.events()
+            .get(
+                calendarId=self.calendar_id,
+                eventId=event_id,
+            )
+            .execute()
+        )
         return GoogleCalendarEvent(response)
 
     def _format_datetime(self, dt: datetime) -> dict[str, str]:
@@ -127,7 +152,8 @@ class GoogleCalendarClient(calendar_client_api.Client):
         }
 
     def _event_to_dict(
-        self, event: calendar_client_api.Event,
+        self,
+        event: calendar_client_api.Event,
     ) -> dict[str, str | dict[str, str]]:
         """
         Convert a standard Event to a Google Calendar request body.
@@ -147,7 +173,8 @@ class GoogleCalendarClient(calendar_client_api.Client):
         return body
 
     def create_event(
-        self, event: calendar_client_api.Event,
+        self,
+        event: calendar_client_api.Event,
     ) -> calendar_client_api.Event:
         """
         Create a new event in the configured calendar.
@@ -157,14 +184,19 @@ class GoogleCalendarClient(calendar_client_api.Client):
         """
         svc = self._require_calendar_service()
         body = self._event_to_dict(event)
-        response = svc.events().insert(
-            calendarId=self.calendar_id,
-            body=body,
-        ).execute()
+        response = (
+            svc.events()
+            .insert(
+                calendarId=self.calendar_id,
+                body=body,
+            )
+            .execute()
+        )
         return GoogleCalendarEvent(response)
 
     def update_event(
-        self, event: calendar_client_api.Event,
+        self,
+        event: calendar_client_api.Event,
     ) -> calendar_client_api.Event:
         """
         Update an existing event in the configured calendar.
@@ -174,11 +206,15 @@ class GoogleCalendarClient(calendar_client_api.Client):
         """
         svc = self._require_calendar_service()
         body = self._event_to_dict(event)
-        response = svc.events().update(
-            calendarId=self.calendar_id,
-            eventId=event.id,
-            body=body,
-        ).execute()
+        response = (
+            svc.events()
+            .update(
+                calendarId=self.calendar_id,
+                eventId=event.id,
+                body=body,
+            )
+            .execute()
+        )
         return GoogleCalendarEvent(response)
 
     def delete_event(self, event_id: str) -> None:
@@ -209,14 +245,18 @@ class GoogleCalendarClient(calendar_client_api.Client):
         svc = self._require_calendar_service()
         page_token = None
         while True:
-            events_result = svc.events().list(
-                calendarId=self.calendar_id,
-                timeMin=start_time.isoformat(),
-                timeMax=end_time.isoformat(),
-                singleEvents=True,
-                orderBy="startTime",
-                pageToken=page_token,
-            ).execute()
+            events_result = (
+                svc.events()
+                .list(
+                    calendarId=self.calendar_id,
+                    timeMin=start_time.isoformat(),
+                    timeMax=end_time.isoformat(),
+                    singleEvents=True,
+                    orderBy="startTime",
+                    pageToken=page_token,
+                )
+                .execute()
+            )
 
             for event in events_result.get("items", []):
                 yield GoogleCalendarEvent(event)
@@ -247,10 +287,14 @@ class GoogleCalendarClient(calendar_client_api.Client):
         property.
         """
         svc = self._require_tasks_service()
-        response = svc.tasks().get(
-            tasklist=self.tasklist_id,
-            task=task_id,
-        ).execute()
+        response = (
+            svc.tasks()
+            .get(
+                tasklist=self.tasklist_id,
+                task=task_id,
+            )
+            .execute()
+        )
         return GoogleCalendarTask(response)
 
     def _task_to_dict(self, task: calendar_client_api.Task) -> dict[str, str]:
@@ -283,10 +327,14 @@ class GoogleCalendarClient(calendar_client_api.Client):
         """
         svc = self._require_tasks_service()
         body = self._task_to_dict(task)
-        response = svc.tasks().insert(
-            tasklist=self.tasklist_id,
-            body=body,
-        ).execute()
+        response = (
+            svc.tasks()
+            .insert(
+                tasklist=self.tasklist_id,
+                body=body,
+            )
+            .execute()
+        )
         return GoogleCalendarTask(response)
 
     def update_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
@@ -298,11 +346,15 @@ class GoogleCalendarClient(calendar_client_api.Client):
         svc = self._require_tasks_service()
         body = self._task_to_dict(task)
         body["id"] = task.id
-        response = svc.tasks().update(
-            tasklist=self.tasklist_id,
-            task=task.id,
-            body=body,
-        ).execute()
+        response = (
+            svc.tasks()
+            .update(
+                tasklist=self.tasklist_id,
+                task=task.id,
+                body=body,
+            )
+            .execute()
+        )
         return GoogleCalendarTask(response)
 
     def delete_task(self, task_id: str) -> None:
@@ -327,13 +379,17 @@ class GoogleCalendarClient(calendar_client_api.Client):
         svc = self._require_tasks_service()
         page_token = None
         while True:
-            tasks_result = svc.tasks().list(
-                tasklist=self.tasklist_id,
-                dueMin=start_time.isoformat() + "Z",
-                dueMax=end_time.isoformat() + "Z",
-                showCompleted=True,
-                pageToken=page_token,
-            ).execute()
+            tasks_result = (
+                svc.tasks()
+                .list(
+                    tasklist=self.tasklist_id,
+                    dueMin=start_time.isoformat(),
+                    dueMax=end_time.isoformat(),
+                    showCompleted=True,
+                    pageToken=page_token,
+                )
+                .execute()
+            )
 
             for task in tasks_result.get("items", []):
                 yield GoogleCalendarTask(task)
@@ -353,9 +409,14 @@ class GoogleCalendarClient(calendar_client_api.Client):
         """
         svc = self._require_tasks_service()
         # Get existing properties first to avoid un-setting title, etc.
-        existing = svc.tasks().get(
-            tasklist=self.tasklist_id, task=task_id,
-        ).execute()
+        existing = (
+            svc.tasks()
+            .get(
+                tasklist=self.tasklist_id,
+                task=task_id,
+            )
+            .execute()
+        )
 
         existing["status"] = "completed"
 

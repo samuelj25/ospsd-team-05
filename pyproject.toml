@@ -10,6 +10,9 @@ dependencies = []
 members = [
     "components/calendar_client_api",
     "components/google_calendar_client_impl",
+    "components/calendar_client_service",
+    "components/calendar_client_service_api_client",
+    "components/calendar_client_adapter",
 ]
 
 [tool.ruff]
@@ -34,11 +37,16 @@ ignore = [
 [tool.mypy]
 strict = true
 explicit_package_bases = true
+exclude = ["^components/calendar_client_service_api_client/"]
 mypy_path = [
     "components/calendar_client_api/src",
     "components/google_calendar_client_impl/src",
+    "components/calendar_client_service/src",
+    "components/calendar_client_adapter/src",
+    "components/calendar_client_service_api_client",
     "tests",
     "components/google_calendar_client_impl/tests",
+    "components/calendar_client_adapter/tests",
 ]
 
 [[tool.mypy.overrides]]
@@ -47,18 +55,31 @@ module = [
     "google.auth.*",
     "google.oauth2.*",
     "google_auth_oauthlib.*",
+    "calendar_client_service_api_client.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["calendar_client_adapter.adapter"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["calendar_client_adapter.tests.test_adapter"]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 pythonpath = [
   "components/calendar_client_api/src",
   "components/google_calendar_client_impl/src",
+  "components/calendar_client_service/src",
+  "components/calendar_client_adapter/src",
+  "components/calendar_client_service_api_client",
 ]
 testpaths = ["tests", "components/*/tests"]
 addopts = [
   "--cov=calendar_client_api",
   "--cov=google_calendar_client_impl",
+  "--cov=calendar_client_service",
   "--cov-report=term-missing",
   "--cov-report=html:coverage-reports/htmlcov",
   "--cov-report=xml:coverage-reports/coverage.xml",
@@ -71,6 +92,7 @@ markers = [
 source = [
   "components/calendar_client_api/src",
   "components/google_calendar_client_impl/src",
+  "components/calendar_client_service/src",
 ]
 omit = [
   "*/tests/*",
@@ -96,4 +118,7 @@ dev = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.25.0",
+    "httpx>=0.27.0",
+    "openapi-python-client>=0.28.3",
+    "types-python-dateutil>=2.9.0.20260305",
 ]

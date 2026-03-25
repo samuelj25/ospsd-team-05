@@ -1,4 +1,5 @@
 """Pytest config for E2E tests."""
+
 import os
 from pathlib import Path
 

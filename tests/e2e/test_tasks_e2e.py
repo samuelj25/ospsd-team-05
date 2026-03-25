@@ -54,7 +54,12 @@ def test_task_lifecycle(live_client: GoogleCalendarClient) -> None:
         if error_caught:
             assert getattr(error_caught, "status_code", 404) in (404, 400, 410)
         else:
-            raw_t = live_client._require_tasks_service().tasks().get(  # noqa: SLF001 # Needed to assert raw Google backend soft-deleted status
-                tasklist=live_client.tasklist_id, task=created.id
-            ).execute()
+            raw_t = (
+                live_client._require_tasks_service()  # noqa: SLF001
+                .tasks()
+                .get(  # Needed to assert raw Google backend soft-deleted status
+                    tasklist=live_client.tasklist_id, task=created.id
+                )
+                .execute()
+            )
             assert raw_t.get("deleted") is True or raw_t.get("hidden") is True

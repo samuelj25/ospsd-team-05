@@ -42,4 +42,3 @@ class Event(ABC):
     def description(self) -> str | None:
         """Return description of the event."""
         raise NotImplementedError
-

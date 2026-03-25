@@ -1,0 +1,29 @@
+[project]
+name = "calendar-client-adapter"
+version = "0.1.0"
+description = "Service client adapter"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "calendar-client-api",
+    "calendar-client-service-api-client"
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+calendar-client-api = { workspace = true }
+calendar-client-service-api-client = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/calendar_client_adapter"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint]
+ignore = ["D", "BLE001", "TRY003", "EM101", "EM102", "TRY301"]
