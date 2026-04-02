@@ -50,6 +50,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+test-results/
+coverage-reports/
 
 # Translations
 *.mo
@@ -205,6 +207,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Google OAuth credentials
+credentials.json
+token.json
 
 # macOS
 .DS_Store
