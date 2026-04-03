@@ -6,7 +6,7 @@ from datetime import datetime  # noqa: TC003
 from typing import Annotated
 
 from calendar_client_api.event import Event
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient  # noqa: TC002
 
 from calendar_client_service.dependencies import get_calendar_client
@@ -54,6 +54,15 @@ class _ServiceEvent(Event):
     def description(self) -> str | None:
         return self._desc
 
+def _to_event_response(e: Event) -> EventResponse:
+    return EventResponse(
+        id=e.id,
+        title=e.title,
+        start_time=e.start_time,
+        end_time=e.end_time,
+        location=e.location,
+        description=e.description,
+    )
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -64,23 +73,9 @@ def list_events(
     end_time: datetime,
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> list[EventResponse]:
-    """
-    Return all events between ``start_time`` and ``end_time``.
-
-    TODO: Implement using ``client.get_events(start_time, end_time)``.
-    """
+    """Return all events between ``start_time`` and ``end_time``."""
     events = client.get_events(start_time, end_time)
-    return [
-        EventResponse(
-            id=e.id,
-            title=e.title,
-            start_time=e.start_time,
-            end_time=e.end_time,
-            location=e.location,
-            description=e.description,
-        )
-        for e in events
-    ]
+    return [_to_event_response(e) for e in events]
 
 
 @router.get("/{event_id}", response_model=EventResponse, summary="Get a single event")
@@ -88,20 +83,9 @@ def get_event(
     event_id: str,
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> EventResponse:
-    """
-    Return the event with the given ``event_id``.
-
-    TODO: Implement using ``client.get_event(event_id)``.
-    """
+    """Return the event with the given ``event_id``."""
     e = client.get_event(event_id)
-    return EventResponse(
-        id=e.id,
-        title=e.title,
-        start_time=e.start_time,
-        end_time=e.end_time,
-        location=e.location,
-        description=e.description,
-    )
+    return _to_event_response(e)
 
 
 @router.post("", response_model=EventResponse, status_code=201, summary="Create an event")
@@ -109,11 +93,7 @@ def create_event(
     payload: EventCreate,
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> EventResponse:
-    """
-    Create a new event from ``payload``.
-
-    TODO: Build an Event object from payload fields and call ``client.create_event(event)``.
-    """
+    """Create a new event from ``payload``."""
     ev = _ServiceEvent(
         e_id="",
         title=payload.title,
@@ -123,14 +103,7 @@ def create_event(
         desc=payload.description,
     )
     e = client.create_event(ev)
-    return EventResponse(
-        id=e.id,
-        title=e.title,
-        start_time=e.start_time,
-        end_time=e.end_time,
-        location=e.location,
-        description=e.description,
-    )
+    return _to_event_response(e)
 
 
 @router.put("/{event_id}", response_model=EventResponse, summary="Update an event")
@@ -139,13 +112,11 @@ def update_event(
     payload: EventUpdate,
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> EventResponse:
-    """
-    Update the event identified by ``event_id`` with data from ``payload``.
-
-    TODO: Build an Event object and call ``client.update_event(event)``.
-    """
+    """Update the event identified by ``event_id`` with data from ``payload``."""
+    if event_id != payload.id:
+        raise HTTPException(status_code=422, detail="Event ID in path and payload must match")
     ev = _ServiceEvent(
-        e_id=event_id,
+        e_id=payload.id,
         title=payload.title,
         start=payload.start_time,
         end=payload.end_time,
@@ -153,14 +124,7 @@ def update_event(
         desc=payload.description,
     )
     e = client.update_event(ev)
-    return EventResponse(
-        id=e.id,
-        title=e.title,
-        start_time=e.start_time,
-        end_time=e.end_time,
-        location=e.location,
-        description=e.description,
-    )
+    return _to_event_response(e)
 
 
 @router.delete("/{event_id}", status_code=204, summary="Delete an event")
@@ -168,9 +132,5 @@ def delete_event(
     event_id: str,
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> None:
-    """
-    Delete the event with the given ``event_id``.
-
-    TODO: Implement using ``client.delete_event(event_id)``.
-    """
+    """Delete the event with the given ``event_id``."""
     client.delete_event(event_id)

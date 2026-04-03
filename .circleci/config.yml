@@ -1,5 +1,19 @@
 version: 2.1
 
+commands:
+  setup_gcp_credentials:
+    steps:
+      - run:
+          name: "Setup GCP Credentials"
+          command: |
+            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
+                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
+                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+            else
+                echo "Error: Base64 GCP variables are not set. Failing Step."
+                exit 1
+            fi
+
 jobs:
   build:
     docker:
@@ -99,16 +113,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run:
-          name: "Setup GCP Credentials"
-          command: |
-            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
-                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
-                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
-            else
-                echo "Error: Base64 GCP variables are not set. Failing Step."
-                exit 1
-            fi
+      - setup_gcp_credentials
       - run:
           name: "Create results directories"
           command: |
@@ -134,16 +139,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run:
-          name: "Setup GCP Credentials"
-          command: |
-            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
-                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
-                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
-            else
-                echo "Error: Base64 GCP variables are not set. Failing Step."
-                exit 1
-            fi
+      - setup_gcp_credentials
       - run:
           name: "Create results directories"
           command: |

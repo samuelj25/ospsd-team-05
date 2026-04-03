@@ -60,11 +60,11 @@ class AdapterEvent(Event):
 
     @property
     def location(self) -> str | None:
-        return getattr(self._response, "location", None) or None
+        return getattr(self._response, "location", None)
 
     @property
     def description(self) -> str | None:
-        return getattr(self._response, "description", None) or None
+        return getattr(self._response, "description", None)
 
 
 class AdapterTask(Task):
@@ -93,7 +93,7 @@ class AdapterTask(Task):
 
     @property
     def description(self) -> str | None:
-        return getattr(self._response, "description", None) or None
+        return getattr(self._response, "description", None)
 
 
 class ServiceAdapterClient(ApiClient):
@@ -139,11 +139,9 @@ class ServiceAdapterClient(ApiClient):
                 title=event.title,
                 start_time=event.start_time,
                 end_time=event.end_time,
+                location=event.location,
+                description=event.description,
             )
-            if event.location is not None:
-                payload.additional_properties["location"] = event.location
-            if event.description is not None:
-                payload.additional_properties["description"] = event.description
 
             resp = create_event_events_post.sync(client=self._client, body=payload)
             if not resp or isinstance(resp, HTTPValidationError):
@@ -160,11 +158,9 @@ class ServiceAdapterClient(ApiClient):
                 title=event.title,
                 start_time=event.start_time,
                 end_time=event.end_time,
+                location=event.location,
+                description=event.description,
             )
-            if event.location is not None:
-                payload.additional_properties["location"] = event.location
-            if event.description is not None:
-                payload.additional_properties["description"] = event.description
 
             resp = update_event_events_event_id_put.sync(
                 client=self._client, event_id=event.id, body=payload
@@ -213,9 +209,8 @@ class ServiceAdapterClient(ApiClient):
             payload = TaskCreate(
                 title=task.title,
                 end_time=task.end_time,
+                description=task.description,
             )
-            if task.description is not None:
-                payload.additional_properties["description"] = task.description
 
             resp = create_task_tasks_post.sync(client=self._client, body=payload)
             if not resp or isinstance(resp, HTTPValidationError):
@@ -232,9 +227,8 @@ class ServiceAdapterClient(ApiClient):
                 title=task.title,
                 end_time=task.end_time,
                 is_completed=task.is_completed,
+                description=task.description,
             )
-            if task.description is not None:
-                payload.additional_properties["description"] = task.description
 
             resp = update_task_tasks_task_id_put.sync(
                 client=self._client, task_id=task.id, body=payload

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 # ---------------------------------------------------------------------------
 # Event models
@@ -18,6 +18,14 @@ class EventCreate(BaseModel):
     location: str | None = None
     description: str | None = None
 
+    @model_validator(mode="after")
+    def check_start_before_end(self) -> "EventCreate":
+        """"Validate that start_time is before end_time."""
+        if self.start_time >= self.end_time:
+            err = "start_time must be before end_time"
+            raise ValueError(err)
+        return self
+
 
 class EventUpdate(BaseModel):
     """Payload for updating an existing calendar event."""
@@ -28,6 +36,14 @@ class EventUpdate(BaseModel):
     end_time: datetime
     location: str | None = None
     description: str | None = None
+
+    @model_validator(mode="after")
+    def check_start_before_end(self) -> "EventUpdate":
+        """"Validate that start_time is before end_time."""
+        if self.start_time >= self.end_time:
+            err = "start_time must be before end_time"
+            raise ValueError(err)
+        return self
 
 
 class EventResponse(BaseModel):
