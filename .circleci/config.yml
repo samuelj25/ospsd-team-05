@@ -107,6 +107,10 @@ jobs:
           path: test-results/unit
           destination: test-results/unit
 
+      - store_artifacts:
+          path: coverage-reports
+          destination: coverage-reports
+
   integration_tests:
     docker:
       - image: cimg/python:3.11

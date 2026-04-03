@@ -177,7 +177,7 @@ class WebOAuthManager:
         self.client_id: str = client_id or os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
         self.client_secret: str = client_secret or os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
         self.redirect_uri: str = redirect_uri or os.environ.get(
-            "OAUTH_REDIRECT_URI", "http://localhost:8000/auth/callback"
+            "OAUTH_REDIRECT_URI", "http://localhost:8000/auth/callback",
         )
 
         if not self.client_id:
@@ -298,3 +298,49 @@ class WebOAuthManager:
 
         """
         return session_id in self._sessions
+
+    def seed_session_from_token_file(
+        self, session_id: str, token_path: str | None = None,
+    ) -> None:
+        """
+        Pre-seed an authenticated session from a local ``token.json`` file.
+
+        This is intended for E2E / subprocess testing where running an
+        interactive OAuth consent flow is not possible.  The caller provides a
+        deterministic *session_id* (e.g. ``"e2e-session"``) so that the test
+        harness can construct an adapter with the same value without completing
+        a real OAuth redirect.
+
+        The credentials are loaded and refreshed if expired, then stored under
+        *session_id* exactly as :meth:`handle_callback` would do for a live
+        session.
+
+        Args:
+            session_id: The session key to register the credentials under.
+            token_path: Path to the ``token.json`` file.  Falls back to the
+                ``GOOGLE_OAUTH_TOKEN_PATH`` environment variable, then to
+                ``"token.json"``.
+
+        Raises:
+            FileNotFoundError: If the resolved token path does not exist.
+
+        """
+        resolved = token_path or os.environ.get(
+            "GOOGLE_OAUTH_TOKEN_PATH", _DEFAULT_TOKEN_PATH,
+        )
+        if not Path(resolved).exists():
+            msg = (
+                f"Token file not found at '{resolved}'. "
+                "Set GOOGLE_OAUTH_TOKEN_PATH or run the OAuth flow first."
+            )
+            raise FileNotFoundError(msg)
+
+        creds: Credentials = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
+            resolved, SCOPES,
+        )
+
+        # Refresh silently if the token has expired.
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+
+        self._sessions[session_id] = creds

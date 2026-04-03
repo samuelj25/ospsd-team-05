@@ -13,6 +13,7 @@ from typing import Any
 
 import calendar_client_api
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 
 from google_calendar_client_impl.auth import get_credentials
 from google_calendar_client_impl.event_impl import GoogleCalendarEvent
@@ -128,14 +129,27 @@ class GoogleCalendarClient(calendar_client_api.Client):
         constructor where it is parsed and flattened into the ``Event`` interface.
         """
         svc = self._require_calendar_service()
-        response = (
-            svc.events()
-            .get(
-                calendarId=self.calendar_id,
-                eventId=event_id,
+        try:
+            response = (
+                svc.events()
+                .get(
+                    calendarId=self.calendar_id,
+                    eventId=event_id,
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
+            if status in (404, 410):
+                msg = f"Event {event_id} not found."
+                raise calendar_client_api.EventNotFoundError(msg) from e
+            msg = f"HTTP Error {status}: {e}"
+            raise calendar_client_api.CalendarOperationError(msg) from e
+
+        if response.get("status") == "cancelled":
+            msg = f"Event {event_id} not found (cancelled)."
+            raise calendar_client_api.EventNotFoundError(msg)
+
         return GoogleCalendarEvent(response)
 
     def _format_datetime(self, dt: datetime) -> dict[str, str]:
@@ -225,10 +239,18 @@ class GoogleCalendarClient(calendar_client_api.Client):
         if the event does not exist or the user lacks permissions.
         """
         svc = self._require_calendar_service()
-        svc.events().delete(
-            calendarId=self.calendar_id,
-            eventId=event_id,
-        ).execute()
+        try:
+            svc.events().delete(
+                calendarId=self.calendar_id,
+                eventId=event_id,
+            ).execute()
+        except HttpError as e:
+            status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
+            if status in (404, 410):
+                msg = f"Event {event_id} not found."
+                raise calendar_client_api.EventNotFoundError(msg) from e
+            msg = f"HTTP Error {status}: {e}"
+            raise calendar_client_api.CalendarOperationError(msg) from e
 
     def get_events(
         self,
@@ -287,14 +309,27 @@ class GoogleCalendarClient(calendar_client_api.Client):
         property.
         """
         svc = self._require_tasks_service()
-        response = (
-            svc.tasks()
-            .get(
-                tasklist=self.tasklist_id,
-                task=task_id,
+        try:
+            response = (
+                svc.tasks()
+                .get(
+                    tasklist=self.tasklist_id,
+                    task=task_id,
+                )
+                .execute()
             )
-            .execute()
-        )
+        except HttpError as e:
+            status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
+            if status in (404, 410):
+                msg = f"Task {task_id} not found."
+                raise calendar_client_api.TaskNotFoundError(msg) from e
+            msg = f"HTTP Error {status}: {e}"
+            raise calendar_client_api.CalendarOperationError(msg) from e
+
+        if response.get("deleted") is True or response.get("hidden") is True:
+            msg = f"Task {task_id} not found (deleted/hidden)."
+            raise calendar_client_api.TaskNotFoundError(msg)
+
         return GoogleCalendarTask(response)
 
     def _task_to_dict(self, task: calendar_client_api.Task) -> dict[str, str]:
@@ -360,10 +395,18 @@ class GoogleCalendarClient(calendar_client_api.Client):
     def delete_task(self, task_id: str) -> None:
         """Delete a task by ID."""
         svc = self._require_tasks_service()
-        svc.tasks().delete(
-            tasklist=self.tasklist_id,
-            task=task_id,
-        ).execute()
+        try:
+            svc.tasks().delete(
+                tasklist=self.tasklist_id,
+                task=task_id,
+            ).execute()
+        except HttpError as e:
+            status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
+            if status in (404, 410):
+                msg = f"Task {task_id} not found."
+                raise calendar_client_api.TaskNotFoundError(msg) from e
+            msg = f"HTTP Error {status}: {e}"
+            raise calendar_client_api.CalendarOperationError(msg) from e
 
     def get_tasks(
         self,

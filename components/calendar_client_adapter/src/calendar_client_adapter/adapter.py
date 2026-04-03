@@ -106,7 +106,7 @@ class ServiceAdapterClient(ApiClient):
 
         kwargs: dict[str, Any] = {
             "base_url": base_url,
-            "token": "secret-token",
+            "token": "cookie-auth-only",  # Not used; auth is handled via session cookies
             "cookies": {"session_id": session_id},
         }
         if httpx_args:

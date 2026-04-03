@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Annotated
 
 from dotenv import load_dotenv
@@ -23,6 +24,12 @@ def get_oauth_manager() -> WebOAuthManager:
     """
     Return the singleton WebOAuthManager, constructing it on first call.
 
+    If the ``E2E_SESSION_ID`` environment variable is set the manager is also
+    seeded with credentials from the local ``token.json`` under that session
+    ID.  This lets E2E tests bypass the interactive OAuth redirect flow by
+    spawning the server with a known ``E2E_SESSION_ID`` and constructing the
+    adapter client with the same value.
+
     Raises:
         RuntimeError: If required OAuth env vars are not set.
 
@@ -31,6 +38,11 @@ def get_oauth_manager() -> WebOAuthManager:
     if _oauth_manager is None:
         load_dotenv()  # Load variables from .env right before we parse them
         _oauth_manager = WebOAuthManager()  # reads from env vars
+
+        e2e_session_id = os.environ.get("E2E_SESSION_ID")
+        if e2e_session_id:
+            _oauth_manager.seed_session_from_token_file(e2e_session_id)
+
     return _oauth_manager
 
 
