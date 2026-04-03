@@ -5,7 +5,11 @@ FastAPI microservice that exposes the `google_calendar_client_impl` over HTTP.
 ## Overview
 
 This component wraps the `GoogleCalendarClient` in a REST API, enabling remote
-access through the Adapter Pattern described in HW2.
+access through the Adapter Pattern. It is the only component that ever imports
+or instantiates `GoogleCalendarClient` directly. All other consumers interact
+with calendar functionality through this service over HTTP.
+
+The service is deployed to Render and accessible at `https://ospsd-team-05.onrender.com`.
 
 ## Structure
 
@@ -14,9 +18,9 @@ src/calendar_client_service/
 ├── app.py            # FastAPI app factory
 ├── dependencies.py   # DI: session-aware GoogleCalendarClient
 ├── models.py         # Pydantic request/response schemas
-├── auth_routes.py    # OAuth 2.0 endpoints (IMPLEMENTED)
-├── event_routes.py   # Event CRUD endpoints (placeholder)
-└── task_routes.py    # Task CRUD endpoints (placeholder)
+├── auth_routes.py    # OAuth 2.0 endpoints
+├── event_routes.py   # Event CRUD endpoints
+└── task_routes.py    # Task CRUD endpoints
 ```
 
 ## Running Locally
@@ -43,11 +47,21 @@ uv run uvicorn calendar_client_service.app:app --reload --port 8000
 
 ## Endpoints
 
-| Method | Path | Status |
+| Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | ✅ Implemented |
-| `GET` | `/auth/login` | ✅ Implemented |
-| `GET` | `/auth/callback` | ✅ Implemented |
-| `GET` | `/auth/status` | ✅ Implemented |
-| `GET/POST/PUT/DELETE` | `/events/*` | 🔲 Placeholder |
-| `GET/POST/PUT/DELETE` | `/tasks/*` | 🔲 Placeholder |
+| `GET` | `/health` | Service liveness check |
+| `GET` | `/auth/login` | Redirect to Google OAuth consent page |
+| `GET` | `/auth/callback` | Exchange auth code for tokens, set session cookie |
+| `GET` | `/auth/status` | Check if current session is authenticated |
+| `POST` | `/auth/logout` | Revoke session and clear session cookie |
+| `GET` | `/events` | List events in a time range |
+| `GET` | `/events/{event_id}` | Fetch a single event by ID |
+| `POST` | `/events` | Create a new event |
+| `PUT` | `/events/{event_id}` | Replace an existing event |
+| `DELETE` | `/events/{event_id}` | Delete an event |
+| `GET` | `/tasks` | List tasks in a time range |
+| `GET` | `/tasks/{task_id}` | Fetch a single task by ID |
+| `POST` | `/tasks` | Create a new task |
+| `PUT` | `/tasks/{task_id}` | Replace an existing task |
+| `DELETE` | `/tasks/{task_id}` | Delete a task |
+| `POST` | `/tasks/{task_id}/complete` | Mark a task as completed |
