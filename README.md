@@ -144,3 +144,28 @@ uv run pytest
 ## Continuous Integration
 
 The project uses CircleCI for automated builds. The pipeline runs static analysis (ruff, mypy), all test suites, stores test results, and reports code coverage. See `.circleci/config.yml` for the full configuration.
+
+## Deployment
+
+The service is configured to be automatically deployed to **Render** using a `Dockerfile`. The automated deployment is triggered via a CircleCI workflow webhook.
+
+### 1. Platform and CI/CD Pipeline
+- **Platform:** Render (Docker Web Service)
+- **CI/CD Integration:** CircleCI triggers the deployment via a Render Deploy Hook URL but **only** on the `hw2` branch and **only** after all unit, integration, and E2E tests have passed. 
+- **Base Image:** `ghcr.io/astral-sh/uv:python3.11-bookworm-slim`
+
+### 2. Live URLs
+- **Base URL:** `https://ospsd-team-05.onrender.com`
+- **OpenAPI Client Base URL:** `https://ospsd-team-05.onrender.com/openapi.json`
+- **Health Check Endpoint:** `https://ospsd-team-05.onrender.com/health` (Returns HTTP 200 OK)
+
+### 3. Required Environment Variables (Production)
+The deployed instance securely manages its configurations using Render Environment variables:
+| Variable | Description |
+|---|---|
+| `GOOGLE_OAUTH_CLIENT_ID` | External Provider OAuth 2.0 Client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | External Provider OAuth 2.0 Client Secret |
+| `OAUTH_REDIRECT_URI` | External Provider OAuth 2.0 Redirect URI |
+| `GOOGLE_CALENDAR_ID` | Calendar ID to operate on (default: `primary`) |
+
+_Note: Secrets are never stored in version control and are only managed securely via the Render Dashboard._

@@ -163,6 +163,21 @@ jobs:
           path: test-results/e2e
           destination: test-results/e2e
 
+  deploy_to_render:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - run:
+          name: "Trigger Render Deployment"
+          command: |
+             if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+                 echo "Error: RENDER_DEPLOY_HOOK_URL environment variable is not set."
+                 exit 1
+             fi
+             echo "Triggering Render deployment..."
+             curl -X GET "$RENDER_DEPLOY_HOOK_URL"
+             echo -e "\nDeployment triggered successfully!"
+
 workflows:
   build_and_test:
     jobs:
@@ -177,3 +192,8 @@ workflows:
           requires: [unit_tests]
       - e2e_tests:
           requires: [integration_tests]
+      - deploy_to_render:
+          requires: [e2e_tests]
+          filters:
+            branches:
+              only: hw2
