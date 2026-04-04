@@ -241,13 +241,17 @@ class TestWebOAuthManagerInit:
 
     def test_raises_when_client_id_missing(self) -> None:
         """ValueError when no client_id and env var not set."""
-        with pytest.raises(ValueError, match="client_id"):
-            WebOAuthManager(client_id="", client_secret="secret")
+        with patch.dict("os.environ", {}, clear=False):
+            __import__("os").environ.pop("GOOGLE_OAUTH_CLIENT_ID", None)
+            with pytest.raises(ValueError, match="client_id"):
+                WebOAuthManager(client_id="", client_secret="secret")
 
     def test_raises_when_client_secret_missing(self) -> None:
         """ValueError when no client_secret and env var not set."""
-        with pytest.raises(ValueError, match="client_secret"):
-            WebOAuthManager(client_id="id", client_secret="")
+        with patch.dict("os.environ", {}, clear=False):
+            __import__("os").environ.pop("GOOGLE_OAUTH_CLIENT_SECRET", None)
+            with pytest.raises(ValueError, match="client_secret"):
+                WebOAuthManager(client_id="id", client_secret="")
 
     def test_reads_from_env_vars(self) -> None:
         """Falls back to environment variables when kwargs are omitted."""
