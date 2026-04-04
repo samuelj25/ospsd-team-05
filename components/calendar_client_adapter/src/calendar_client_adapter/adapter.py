@@ -1,0 +1,273 @@
+"""Service adapter implementation mapping API calls to the OpenAPI client."""
+
+import json
+from collections.abc import Iterator
+from datetime import datetime
+from typing import Any
+
+import calendar_client_api
+from calendar_client_api import CalendarOperationError, EventNotFoundError, TaskNotFoundError
+from calendar_client_api.client import Client as ApiClient
+from calendar_client_api.event import Event
+from calendar_client_api.task import Task
+from calendar_client_service_api_client.api.events import (
+    create_event_events_post,
+    delete_event_events_event_id_delete,
+    get_event_events_event_id_get,
+    list_events_events_get,
+    update_event_events_event_id_put,
+)
+from calendar_client_service_api_client.api.tasks import (
+    complete_task_tasks_task_id_complete_post,
+    create_task_tasks_post,
+    delete_task_tasks_task_id_delete,
+    get_task_tasks_task_id_get,
+    list_tasks_tasks_get,
+    update_task_tasks_task_id_put,
+)
+from calendar_client_service_api_client.client import AuthenticatedClient
+from calendar_client_service_api_client.errors import UnexpectedStatus
+from calendar_client_service_api_client.models import (
+    EventCreate,
+    EventResponse,
+    EventUpdate,
+    HTTPValidationError,
+    TaskCreate,
+    TaskResponse,
+    TaskUpdate,
+)
+
+
+class AdapterEvent(Event):
+    def __init__(self, response: EventResponse) -> None:
+        self._response = response
+
+    @property
+    def id(self) -> str:
+        return self._response.id
+
+    @property
+    def title(self) -> str:
+        return self._response.title
+
+    @property
+    def start_time(self) -> datetime:
+        return self._response.start_time
+
+    @property
+    def end_time(self) -> datetime:
+        return self._response.end_time
+
+    @property
+    def location(self) -> str | None:
+        return getattr(self._response, "location", None)
+
+    @property
+    def description(self) -> str | None:
+        return getattr(self._response, "description", None)
+
+
+class AdapterTask(Task):
+    def __init__(self, response: TaskResponse) -> None:
+        self._response = response
+
+    @property
+    def id(self) -> str:
+        return self._response.id
+
+    @property
+    def title(self) -> str:
+        return self._response.title
+
+    @property
+    def start_time(self) -> datetime:
+        return self._response.start_time
+
+    @property
+    def end_time(self) -> datetime:
+        return self._response.end_time
+
+    @property
+    def is_completed(self) -> bool:
+        return self._response.is_completed
+
+    @property
+    def description(self) -> str | None:
+        return getattr(self._response, "description", None)
+
+
+class ServiceAdapterClient(ApiClient):
+    def __init__(
+        self, base_url: str, session_id: str, httpx_args: dict[str, Any] | None = None
+    ) -> None:
+        super().__init__()
+        self.base_url = base_url
+        self.session_id = session_id
+
+        kwargs: dict[str, Any] = {
+            "base_url": base_url,
+            "token": "cookie-auth-only",  # Not used; auth is handled via session cookies
+            "cookies": {"session_id": session_id},
+        }
+        if httpx_args:
+            kwargs["httpx_args"] = httpx_args
+
+        self._client = AuthenticatedClient(**kwargs)
+
+    def _handle_error(self, exc: Exception, not_found_cls: type[Exception]) -> None:
+        if isinstance(exc, (CalendarOperationError, EventNotFoundError, TaskNotFoundError)):
+            raise exc
+        if isinstance(exc, UnexpectedStatus):
+            if exc.status_code == 404:  # noqa: PLR2004
+                raise not_found_cls("Resource not found.") from exc
+            raise CalendarOperationError(f"HTTP Error: {exc.status_code}") from exc
+        raise CalendarOperationError(str(exc)) from exc
+
+    def get_event(self, event_id: str) -> Event:
+        try:
+            resp = get_event_events_event_id_get.sync(client=self._client, event_id=event_id)
+            if not resp or isinstance(resp, HTTPValidationError):
+                raise EventNotFoundError(f"Event {event_id} not found")
+            return AdapterEvent(resp)
+        except Exception as e:
+            self._handle_error(e, EventNotFoundError)
+            raise
+
+    def create_event(self, event: Event) -> Event:
+        try:
+            payload = EventCreate(
+                title=event.title,
+                start_time=event.start_time,
+                end_time=event.end_time,
+                location=event.location,
+                description=event.description,
+            )
+
+            resp = create_event_events_post.sync(client=self._client, body=payload)
+            if not resp or isinstance(resp, HTTPValidationError):
+                raise CalendarOperationError("Failed to create event")
+            return AdapterEvent(resp)
+        except Exception as e:
+            self._handle_error(e, CalendarOperationError)
+            raise
+
+    def update_event(self, event: Event) -> Event:
+        try:
+            payload = EventUpdate(
+                id=event.id,
+                title=event.title,
+                start_time=event.start_time,
+                end_time=event.end_time,
+                location=event.location,
+                description=event.description,
+            )
+
+            resp = update_event_events_event_id_put.sync(
+                client=self._client, event_id=event.id, body=payload
+            )
+            if not resp or isinstance(resp, HTTPValidationError):
+                raise EventNotFoundError(f"Event {event.id} not found")
+            return AdapterEvent(resp)
+        except Exception as e:
+            self._handle_error(e, EventNotFoundError)
+            raise
+
+    def delete_event(self, event_id: str) -> None:
+        try:
+            delete_event_events_event_id_delete.sync(client=self._client, event_id=event_id)
+        except Exception as e:
+            self._handle_error(e, EventNotFoundError)
+
+    def get_events(self, start_time: datetime, end_time: datetime) -> Iterator[Event]:
+        try:
+            resp = list_events_events_get.sync(
+                client=self._client, start_time=start_time, end_time=end_time
+            )
+            if resp and not isinstance(resp, HTTPValidationError):
+                for r in resp:
+                    yield AdapterEvent(r)
+        except Exception as e:
+            self._handle_error(e, CalendarOperationError)
+            raise
+
+    def from_raw_data(self, raw_data: str) -> Event:
+        data = json.loads(raw_data)
+        return AdapterEvent(EventResponse.from_dict(data))
+
+    def get_task(self, task_id: str) -> Task:
+        try:
+            resp = get_task_tasks_task_id_get.sync(client=self._client, task_id=task_id)
+            if not resp or isinstance(resp, HTTPValidationError):
+                raise TaskNotFoundError(f"Task {task_id} not found")
+            return AdapterTask(resp)
+        except Exception as e:
+            self._handle_error(e, TaskNotFoundError)
+            raise
+
+    def create_task(self, task: Task) -> Task:
+        try:
+            payload = TaskCreate(
+                title=task.title,
+                end_time=task.end_time,
+                description=task.description,
+            )
+
+            resp = create_task_tasks_post.sync(client=self._client, body=payload)
+            if not resp or isinstance(resp, HTTPValidationError):
+                raise CalendarOperationError("Failed to create task")
+            return AdapterTask(resp)
+        except Exception as e:
+            self._handle_error(e, CalendarOperationError)
+            raise
+
+    def update_task(self, task: Task) -> Task:
+        try:
+            payload = TaskUpdate(
+                id=task.id,
+                title=task.title,
+                end_time=task.end_time,
+                is_completed=task.is_completed,
+                description=task.description,
+            )
+
+            resp = update_task_tasks_task_id_put.sync(
+                client=self._client, task_id=task.id, body=payload
+            )
+            if not resp or isinstance(resp, HTTPValidationError):
+                raise TaskNotFoundError(f"Task {task.id} not found")
+            return AdapterTask(resp)
+        except Exception as e:
+            self._handle_error(e, TaskNotFoundError)
+            raise
+
+    def delete_task(self, task_id: str) -> None:
+        try:
+            delete_task_tasks_task_id_delete.sync(client=self._client, task_id=task_id)
+        except Exception as e:
+            self._handle_error(e, TaskNotFoundError)
+
+    def get_tasks(self, start_time: datetime, end_time: datetime) -> Iterator[Task]:
+        try:
+            resp = list_tasks_tasks_get.sync(
+                client=self._client, start_time=start_time, end_time=end_time
+            )
+            if resp and not isinstance(resp, HTTPValidationError):
+                for r in resp:
+                    yield AdapterTask(r)
+        except Exception as e:
+            self._handle_error(e, CalendarOperationError)
+            raise
+
+    def mark_task_completed(self, task_id: str) -> None:
+        try:
+            complete_task_tasks_task_id_complete_post.sync(client=self._client, task_id=task_id)
+        except Exception as e:
+            self._handle_error(e, TaskNotFoundError)
+
+
+def get_client_impl(base_url: str = "http://127.0.0.1:8000", session_id: str = "") -> ApiClient:
+    return ServiceAdapterClient(base_url, session_id)
+
+
+def register(base_url: str = "http://127.0.0.1:8000", session_id: str = "") -> None:
+    calendar_client_api.get_client = lambda: get_client_impl(base_url, session_id)

@@ -4,7 +4,7 @@
 
 import os
 from datetime import UTC, datetime
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import calendar_client_api
 import pytest
@@ -19,8 +19,10 @@ from google_calendar_client_impl.event_impl import GoogleCalendarEvent
 
 def test_google_client_connect_mocks() -> None:
     """Test that connect() calls get_credentials and builds services."""
-    with patch("google_calendar_client_impl.google_calendar_impl.get_credentials"), \
-         patch("google_calendar_client_impl.google_calendar_impl.build"):
+    with (
+        patch("google_calendar_client_impl.google_calendar_impl.get_credentials"),
+        patch("google_calendar_client_impl.google_calendar_impl.build"),
+    ):
         client = GoogleCalendarClient()
         # Should not raise
         client.connect()
@@ -28,11 +30,30 @@ def test_google_client_connect_mocks() -> None:
         assert client._tasks_service is not None
 
 
+def test_google_client_connect_with_credentials() -> None:
+    """Test that connect_with_credentials() builds services from externally supplied creds."""
+    expected_build_calls = 2  # once for calendar, once for tasks
+    with patch("google_calendar_client_impl.google_calendar_impl.build") as mock_build:
+        fake_creds = MagicMock()
+        client = GoogleCalendarClient()
+        client.connect_with_credentials(fake_creds)
+
+        assert mock_build.call_count == expected_build_calls
+        assert client._service is not None
+        assert client._tasks_service is not None
+        # Verify get_credentials was NOT called (external creds bypass it)
+        calls = [str(call) for call in mock_build.call_args_list]
+        assert any("calendar" in c for c in calls)
+        assert any("tasks" in c for c in calls)
+
+
 def test_google_client_connect_picks_up_calendar_id_from_env() -> None:
     """Test that connect() reads GOOGLE_CALENDAR_ID env var when calendar_id is default."""
-    with patch.dict(os.environ, {"GOOGLE_CALENDAR_ID": "custom@group.calendar.google.com"}), \
-         patch("google_calendar_client_impl.google_calendar_impl.get_credentials"), \
-         patch("google_calendar_client_impl.google_calendar_impl.build"):
+    with (
+        patch.dict(os.environ, {"GOOGLE_CALENDAR_ID": "custom@group.calendar.google.com"}),
+        patch("google_calendar_client_impl.google_calendar_impl.get_credentials"),
+        patch("google_calendar_client_impl.google_calendar_impl.build"),
+    ):
         client = GoogleCalendarClient()
         client.connect()
         assert client.calendar_id == "custom@group.calendar.google.com"
@@ -82,6 +103,7 @@ def test_google_calendar_event_missing_id() -> None:
     """Test TypeError is raised when id is missing from raw data."""
     with pytest.raises(TypeError, match=r"'id'.*string"):
         GoogleCalendarEvent({"summary": "no id"})
+
 
 # ---------------------------------------------------------------------------
 # MockEvent helper

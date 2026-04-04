@@ -1,5 +1,19 @@
 version: 2.1
 
+commands:
+  setup_gcp_credentials:
+    steps:
+      - run:
+          name: "Setup GCP Credentials"
+          command: |
+            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
+                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
+                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+            else
+                echo "Error: Base64 GCP variables are not set. Failing Step."
+                exit 1
+            fi
+
 jobs:
   build:
     docker:
@@ -84,7 +98,7 @@ jobs:
           name: "Run unit tests"
           command: |
             source .venv/bin/activate
-            uv run pytest components/google_calendar_client_impl/tests/ --junitxml=test-results/unit/results.xml
+            uv run pytest components/ --junitxml=test-results/unit/results.xml
 
       - store_test_results:
           path: test-results/unit
@@ -93,22 +107,17 @@ jobs:
           path: test-results/unit
           destination: test-results/unit
 
+      - store_artifacts:
+          path: coverage-reports
+          destination: coverage-reports
+
   integration_tests:
     docker:
       - image: cimg/python:3.11
     steps:
       - attach_workspace:
           at: .
-      - run:
-          name: "Setup GCP Credentials"
-          command: |
-            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
-                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
-                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
-            else
-                echo "Error: Base64 GCP variables are not set. Failing Step."
-                exit 1
-            fi
+      - setup_gcp_credentials
       - run:
           name: "Create results directories"
           command: |
@@ -134,16 +143,7 @@ jobs:
     steps:
       - attach_workspace:
           at: .
-      - run:
-          name: "Setup GCP Credentials"
-          command: |
-            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
-                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
-                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
-            else
-                echo "Error: Base64 GCP variables are not set. Failing Step."
-                exit 1
-            fi
+      - setup_gcp_credentials
       - run:
           name: "Create results directories"
           command: |
@@ -163,6 +163,21 @@ jobs:
           path: test-results/e2e
           destination: test-results/e2e
 
+  deploy_to_render:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - run:
+          name: "Trigger Render Deployment"
+          command: |
+             if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
+                 echo "Error: RENDER_DEPLOY_HOOK_URL environment variable is not set."
+                 exit 1
+             fi
+             echo "Triggering Render deployment..."
+             curl -X GET "$RENDER_DEPLOY_HOOK_URL"
+             echo -e "\nDeployment triggered successfully!"
+
 workflows:
   build_and_test:
     jobs:
@@ -177,3 +192,8 @@ workflows:
           requires: [unit_tests]
       - e2e_tests:
           requires: [integration_tests]
+      - deploy_to_render:
+          requires: [e2e_tests]
+          filters:
+            branches:
+              only: hw2

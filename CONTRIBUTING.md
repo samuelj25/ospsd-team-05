@@ -9,7 +9,7 @@ Thank you for your interest in contributing to the Google Calendar Client projec
 - Python 3.11 or higher
 - `uv` package manager ([install instructions](https://docs.astral.sh/uv/getting-started/installation/))
 - A Google Cloud project with the Calendar API and Tasks API enabled
-- OAuth 2.0 credentials (`credentials.json`) from the Google Cloud Console
+- OAuth 2.0 credentials (Client ID and Client Secret) from the Google Cloud Console
 
 ### Setting Up Your Development Environment
 
@@ -25,9 +25,20 @@ Thank you for your interest in contributing to the Google Calendar Client projec
    ```
 
 3. **Set up credentials:**
-   Place your `credentials.json` in the project root. On first run, an interactive OAuth flow will generate `token.json`. Never commit either file.
+   Export your Google OAuth credentials as environment variables. Never commit secrets to version control.
+   ```bash
+   export GOOGLE_OAUTH_CLIENT_ID=your-client-id
+   export GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
+   export OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
+   ```
 
-4. **Verify everything works:**
+4. **Run the service locally:**
+   ```bash
+   uv run uvicorn calendar_client_service.app:app --reload --port 8000
+   ```
+   Navigate to `http://localhost:8000/auth/login` to complete the OAuth flow.
+
+5. **Verify everything works:**
    ```bash
    uv run ruff check .
    uv run mypy --strict .
@@ -39,18 +50,28 @@ Thank you for your interest in contributing to the Google Calendar Client projec
 ```
 ospsd-team-05/
 ├── components/
-│   ├── calendar_client_api/          # Abstract interface (ABC)
-│   │   ├── src/calendar_client_api/  # Source code
-│   │   └── tests/                    # Unit tests
-│   └── google_calendar_client_impl/  # Concrete implementation
-│       ├── src/google_calendar_client_impl/  # Source code
-│       └── tests/                    # Unit tests
-├── tests/                            # Cross-component tests
+│   ├── calendar_client_api/              # Abstract interface (ABC)
+│   │   ├── src/calendar_client_api/      # Source code
+│   │   └── tests/                        # Unit tests
+│   ├── google_calendar_client_impl/      # Concrete Google Calendar implementation
+│   │   ├── src/google_calendar_client_impl/  # Source code
+│   │   └── tests/                        # Unit tests
+│   ├── calendar_client_service/          # FastAPI HTTP service
+│   │   ├── src/calendar_client_service/  # Source code
+│   │   └── tests/                        # Unit tests
+│   ├── calendar_client_service_api_client/  # Auto-generated HTTP client
+│   │   ├── calendar_client_service_api_client/  # Source code
+│   │   └── tests/                        # Smoke tests
+│   └── calendar_client_adapter/          # Adapter: Client interface → HTTP client
+│       ├── src/calendar_client_adapter/  # Source code
+│       └── tests/                        # Unit and integration tests
+├── tests/                                # Cross-component tests
 │   ├── integration/
 │   └── e2e/
-├── docs/                             # MkDocs documentation
-├── pyproject.toml                    # Root workspace config
-└── mkdocs.yml                        # Documentation config
+├── docs/                                 # MkDocs documentation
+├── Dockerfile                            # Container definition for Render deployment
+├── pyproject.toml                        # Root workspace config
+└── mkdocs.yml                            # Documentation config
 ```
 
 ## Development Workflow
@@ -128,7 +149,7 @@ uv run pytest
 
 - **Unit tests** (`components/*/tests/`): Fast, isolated, deterministic. Mock all external API calls. No test should depend on another.
 - **Integration tests** (`tests/integration/`): Verify dependency injection and component interaction.
-- **End-to-end tests** (`tests/e2e/`): Run against real Google APIs with test credentials.
+- **End-to-end tests** (`tests/e2e/`): Run against the live deployed service and real Google APIs with test credentials.
 
 ### Writing Tests
 
@@ -162,8 +183,9 @@ When adding or modifying a component, update the corresponding documentation in 
 
 | Variable | Description | Default |
 |---|---|---|
-| `GOOGLE_OAUTH_CREDENTIALS_PATH` | Path to OAuth client-secrets file | `credentials.json` |
-| `GOOGLE_OAUTH_TOKEN_PATH` | Path to cached token file | `token.json` |
+| `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 Client ID from GCP Console | — |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 Client Secret from GCP Console | — |
+| `OAUTH_REDIRECT_URI` | OAuth callback URL | `http://localhost:8000/auth/callback` |
 | `GOOGLE_CALENDAR_ID` | Calendar ID to operate on | `primary` |
 
 Credentials must never be hardcoded. Use environment variables for all secrets, especially in CI.
