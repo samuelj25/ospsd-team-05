@@ -1,12 +1,9 @@
 """FastAPI application factory for the calendar client service."""
 
-from calendar_client_api.exceptions import (
-    CalendarOperationError,
-    EventNotFoundError,
-    TaskNotFoundError,
-)
+from calendar_client_api.exceptions import TaskNotFoundError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 from calendar_client_service.auth_routes import router as auth_router
 from calendar_client_service.event_routes import router as event_router
@@ -61,30 +58,28 @@ def create_app() -> FastAPI:
 
     @application.exception_handler(EventNotFoundError)
     async def event_not_found_exception_handler(
-        _: Request,
-        exc: EventNotFoundError) -> JSONResponse:
-            return JSONResponse(
-                status_code=404,
-                content={"message": str(exc)},
-            )
+        _: Request, exc: EventNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={"message": str(exc)},
+        )
 
     @application.exception_handler(TaskNotFoundError)
-    async def task_not_found_exception_handler(
-        _: Request,
-        exc: TaskNotFoundError) -> JSONResponse:
-            return JSONResponse(
-                status_code=404,
-                content={"message": str(exc)},
-            )
+    async def task_not_found_exception_handler(_: Request, exc: TaskNotFoundError) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={"message": str(exc)},
+        )
 
     @application.exception_handler(CalendarOperationError)
     async def calendar_operation_exception_handler(
-        _: Request,
-        exc: CalendarOperationError) -> JSONResponse:
-            return JSONResponse(
-                status_code=400,
-                content={"message": str(exc)},
-            )
+        _: Request, exc: CalendarOperationError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=400,
+            content={"message": str(exc)},
+        )
 
     return application
 

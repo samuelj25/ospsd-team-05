@@ -3,10 +3,11 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from calendar_client_api.exceptions import EventNotFoundError, TaskNotFoundError
-from google_calendar_client_impl.event_impl import GoogleCalendarEvent
+from calendar_client_api.exceptions import TaskNotFoundError
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 from google_calendar_client_impl.task_impl import GoogleCalendarTask
+from ospsd_calendar_api.exceptions import EventNotFoundError
+from ospsd_calendar_api.models import Event
 
 
 def test_get_event_parsed_abstraction(integration_live_client: GoogleCalendarClient) -> None:
@@ -19,22 +20,17 @@ def test_get_event_parsed_abstraction(integration_live_client: GoogleCalendarCli
     start = (now + timedelta(hours=1)).replace(microsecond=0)
     end = (start + timedelta(hours=1)).replace(microsecond=0)
 
-    event_data: dict[str, str | dict[str, str]] = {
-        "id": "dummy",
-        "summary": "Integration Get Event",
-        "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end.isoformat(), "timeZone": "UTC"},
-    }
-
     # Pre-requisite: create the event
-    created = integration_live_client.create_event(GoogleCalendarEvent(event_data))
+    created = integration_live_client.create_event(
+        title="Integration Get Event", start=start, end=end
+    )
 
     try:
         # Test get_event verifies Event abstraction correctness.
         fetched = integration_live_client.get_event(created.id)
 
         # Verify it correctly returns a parsed Event abstraction
-        assert isinstance(fetched, GoogleCalendarEvent)
+        assert isinstance(fetched, Event)
         assert fetched.id == created.id
         assert fetched.title == "Integration Get Event"
         assert fetched.start_time == start
@@ -55,18 +51,12 @@ def test_create_event_properly_pushes_abstraction(
     start = (now + timedelta(hours=2)).replace(microsecond=0)
     end = (start + timedelta(hours=2)).replace(microsecond=0)
 
-    event_data: dict[str, str | dict[str, str]] = {
-        "id": "dummy",
-        "summary": "Integration Create Event",
-        "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end.isoformat(), "timeZone": "UTC"},
-    }
-
-    event_to_create = GoogleCalendarEvent(event_data)
     created_id = None
     try:
         # Test create_event pushing abstraction to API
-        created = integration_live_client.create_event(event_to_create)
+        created = integration_live_client.create_event(
+            title="Integration Create Event", start=start, end=end
+        )
         created_id = created.id
         assert created.id is not None
         assert created.title == "Integration Create Event"
@@ -128,13 +118,9 @@ def test_cleanup_functions_verify_resources_scrubbed(
     end = (start + timedelta(hours=3)).replace(microsecond=0)
 
     # 1. Setup - Create an event and a task to delete
-    event_data: dict[str, str | dict[str, str]] = {
-        "id": "dummy",
-        "summary": "Integration Cleanup Event",
-        "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end.isoformat(), "timeZone": "UTC"},
-    }
-    event = integration_live_client.create_event(GoogleCalendarEvent(event_data))
+    event = integration_live_client.create_event(
+        title="Integration Cleanup Event", start=start, end=end
+    )
 
     due = (now + timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
     task_data = {

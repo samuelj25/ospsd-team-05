@@ -39,9 +39,6 @@ def make_mock_task(
     return t
 
 
-
-
-
 @pytest.fixture
 def mock_calendar_client() -> MagicMock:
     """Return a mock GoogleCalendarClient."""
@@ -54,9 +51,6 @@ def client(mock_calendar_client: MagicMock) -> TestClient:
     app = create_app()
     app.dependency_overrides[get_calendar_client] = lambda: mock_calendar_client
     return TestClient(app)
-
-
-
 
 
 class TestListTasks:
@@ -99,9 +93,6 @@ class TestListTasks:
         """List tasks returns HTTP 422 when query params are missing."""
         response = client.get("/tasks")
         assert response.status_code == STAT_CODE_422
-
-
-
 
 
 class TestGetTask:
@@ -148,9 +139,6 @@ class TestGetTask:
         mock_calendar_client.get_task.return_value = make_mock_task(description=None)
         response = client.get("/tasks/task-1")
         assert response.json()["description"] is None
-
-
-
 
 
 class TestCreateTask:
@@ -215,8 +203,6 @@ class TestCreateTask:
         assert response.status_code == STAT_CODE_201
 
 
-
-
 class TestUpdateTask:
     """Tests for PUT /tasks/{task_id}."""
 
@@ -273,8 +259,6 @@ class TestUpdateTask:
         assert response.status_code == STAT_CODE_422
 
 
-
-
 class TestDeleteTask:
     """Tests for DELETE /tasks/{task_id}."""
 
@@ -294,8 +278,6 @@ class TestDeleteTask:
         """Delete task returns an empty response body."""
         response = client.delete("/tasks/task-1")
         assert response.content == b""
-
-
 
 
 class TestCompleteTask:
