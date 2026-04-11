@@ -57,7 +57,6 @@ class _SimpleTask(Task):
         end_time: datetime,
         task_id: str = "",
         is_completed: bool = False,  # noqa: FBT001, FBT002
-
         description: str | None = None,
     ) -> None:
         self._id = task_id
@@ -97,7 +96,6 @@ def _make_task(
     end_time: datetime,
     task_id: str = "",
     is_completed: bool = False,  # noqa: FBT001, FBT002
-
     description: str | None = None,
 ) -> _SimpleTask:
     return _SimpleTask(

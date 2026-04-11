@@ -8,7 +8,6 @@ from typing import Any
 import calendar_client_api
 from calendar_client_api import CalendarOperationError, EventNotFoundError, TaskNotFoundError
 from calendar_client_api.client import Client as ApiClient
-from calendar_client_api.event import Event
 from calendar_client_api.task import Task
 from calendar_client_service_api_client.api.events import (
     create_event_events_post,
@@ -36,35 +35,19 @@ from calendar_client_service_api_client.models import (
     TaskResponse,
     TaskUpdate,
 )
+from ospsd_calendar_api.models import Event
 
 
-class AdapterEvent(Event):
-    def __init__(self, response: EventResponse) -> None:
-        self._response = response
-
-    @property
-    def id(self) -> str:
-        return self._response.id
-
-    @property
-    def title(self) -> str:
-        return self._response.title
-
-    @property
-    def start_time(self) -> datetime:
-        return self._response.start_time
-
-    @property
-    def end_time(self) -> datetime:
-        return self._response.end_time
-
-    @property
-    def location(self) -> str | None:
-        return getattr(self._response, "location", None)
-
-    @property
-    def description(self) -> str | None:
-        return getattr(self._response, "description", None)
+def _event_response_to_event(resp: EventResponse) -> Event:
+    """Convert an auto-generated ``EventResponse`` model into an ``Event`` dataclass."""
+    return Event(
+        id=resp.id,
+        title=resp.title,
+        start_time=resp.start_time,
+        end_time=resp.end_time,
+        location=getattr(resp, "location", None),
+        description=getattr(resp, "description", None),
+    )
 
 
 class AdapterTask(Task):
@@ -123,51 +106,62 @@ class ServiceAdapterClient(ApiClient):
             raise CalendarOperationError(f"HTTP Error: {exc.status_code}") from exc
         raise CalendarOperationError(str(exc)) from exc
 
+    # ------------------------------------------------------------------
+    # Events — implements ospsd_calendar_api.CalendarClient interface
+    # ------------------------------------------------------------------
+
     def get_event(self, event_id: str) -> Event:
         try:
             resp = get_event_events_event_id_get.sync(client=self._client, event_id=event_id)
             if not resp or isinstance(resp, HTTPValidationError):
                 raise EventNotFoundError(f"Event {event_id} not found")
-            return AdapterEvent(resp)
+            return _event_response_to_event(resp)
         except Exception as e:
             self._handle_error(e, EventNotFoundError)
             raise
 
-    def create_event(self, event: Event) -> Event:
+    def create_event(
+        self,
+        title: str,
+        start: datetime,
+        end: datetime,
+        description: str = "",
+        location: str | None = None,
+    ) -> Event:
         try:
             payload = EventCreate(
-                title=event.title,
-                start_time=event.start_time,
-                end_time=event.end_time,
-                location=event.location,
-                description=event.description,
+                title=title,
+                start_time=start,
+                end_time=end,
+                location=location,
+                description=description or None,
             )
 
             resp = create_event_events_post.sync(client=self._client, body=payload)
             if not resp or isinstance(resp, HTTPValidationError):
                 raise CalendarOperationError("Failed to create event")
-            return AdapterEvent(resp)
+            return _event_response_to_event(resp)
         except Exception as e:
             self._handle_error(e, CalendarOperationError)
             raise
 
-    def update_event(self, event: Event) -> Event:
+    def update_event(self, event_id: str, **kwargs: Any) -> Event:  # noqa: ANN401  # type: ignore[override]
         try:
             payload = EventUpdate(
-                id=event.id,
-                title=event.title,
-                start_time=event.start_time,
-                end_time=event.end_time,
-                location=event.location,
-                description=event.description,
+                id=event_id,
+                title=kwargs.get("title", ""),
+                start_time=kwargs["start_time"],
+                end_time=kwargs["end_time"],
+                location=kwargs.get("location"),
+                description=kwargs.get("description"),
             )
 
             resp = update_event_events_event_id_put.sync(
-                client=self._client, event_id=event.id, body=payload
+                client=self._client, event_id=event_id, body=payload
             )
             if not resp or isinstance(resp, HTTPValidationError):
-                raise EventNotFoundError(f"Event {event.id} not found")
-            return AdapterEvent(resp)
+                raise EventNotFoundError(f"Event {event_id} not found")
+            return _event_response_to_event(resp)
         except Exception as e:
             self._handle_error(e, EventNotFoundError)
             raise
@@ -178,21 +172,23 @@ class ServiceAdapterClient(ApiClient):
         except Exception as e:
             self._handle_error(e, EventNotFoundError)
 
-    def get_events(self, start_time: datetime, end_time: datetime) -> Iterator[Event]:
+    def list_events(self, start: datetime, end: datetime) -> list[Event]:
         try:
-            resp = list_events_events_get.sync(
-                client=self._client, start_time=start_time, end_time=end_time
-            )
+            resp = list_events_events_get.sync(client=self._client, start_time=start, end_time=end)
             if resp and not isinstance(resp, HTTPValidationError):
-                for r in resp:
-                    yield AdapterEvent(r)
+                return [_event_response_to_event(r) for r in resp]
+            return []  # noqa: TRY300
         except Exception as e:
             self._handle_error(e, CalendarOperationError)
             raise
 
     def from_raw_data(self, raw_data: str) -> Event:
         data = json.loads(raw_data)
-        return AdapterEvent(EventResponse.from_dict(data))
+        return _event_response_to_event(EventResponse.from_dict(data))
+
+    # ------------------------------------------------------------------
+    # Tasks — Team-05 private extension
+    # ------------------------------------------------------------------
 
     def get_task(self, task_id: str) -> Task:
         try:

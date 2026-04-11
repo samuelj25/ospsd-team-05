@@ -55,6 +55,7 @@ class _ServiceTask(Task):
     def description(self) -> str | None:
         return self._desc
 
+
 def _to_task_response(t: Task) -> TaskResponse:
     return TaskResponse(
         id=t.id,
@@ -64,6 +65,7 @@ def _to_task_response(t: Task) -> TaskResponse:
         description=t.description,
         is_completed=t.is_completed,
     )
+
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
