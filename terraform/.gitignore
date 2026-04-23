@@ -1,0 +1,21 @@
+# Real variable values — contains secrets, never commit
+*.tfvars
+*.tfvars.json
+
+# Terraform state — contains sensitive output values in plaintext
+*.tfstate
+*.tfstate.backup
+
+# Terraform working directory — downloaded provider binaries
+.terraform/
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
