@@ -10,7 +10,7 @@ import calendar_client_api
 import pytest
 
 from google_calendar_client_impl import GoogleCalendarClient
-from google_calendar_client_impl.event_impl import GoogleCalendarEvent
+from google_calendar_client_impl.event_impl import google_dict_to_event
 
 # ---------------------------------------------------------------------------
 # connect() tests
@@ -64,8 +64,8 @@ def test_google_client_connect_picks_up_calendar_id_from_env() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_google_client_get_events_with_mock() -> None:
-    """Test get_events returns an iterator mapping Google JSON to GoogleCalendarEvent objects."""
+def test_google_client_list_events_with_mock() -> None:
+    """Test list_events returns a list mapping Google JSON to Event objects."""
     with patch("google_calendar_client_impl.google_calendar_impl.build"):
         client = GoogleCalendarClient(calendar_id="primary")
 
@@ -88,9 +88,8 @@ def test_google_client_get_events_with_mock() -> None:
         start = datetime(2026, 2, 16, 9, 0, tzinfo=UTC)
         end = datetime(2026, 2, 16, 10, 0, tzinfo=UTC)
 
-        events_iter = client.get_events(start_time=start, end_time=end)
+        events_list = client.list_events(start=start, end=end)
 
-        events_list = list(events_iter)
         assert len(events_list) == 1
 
         event = events_list[0]
@@ -99,66 +98,15 @@ def test_google_client_get_events_with_mock() -> None:
         assert event.start_time.isoformat() == "2026-02-16T09:00:00+00:00"
 
 
-def test_google_calendar_event_missing_id() -> None:
+def test_google_dict_to_event_missing_id() -> None:
     """Test TypeError is raised when id is missing from raw data."""
     with pytest.raises(TypeError, match=r"'id'.*string"):
-        GoogleCalendarEvent({"summary": "no id"})
+        google_dict_to_event({"summary": "no id", "start": {}, "end": {}})
 
 
 # ---------------------------------------------------------------------------
-# MockEvent helper
+# Test helpers
 # ---------------------------------------------------------------------------
-
-
-class MockEvent(calendar_client_api.Event):
-    """Mock Event for testing CRUD methods."""
-
-    def __init__(  # noqa: PLR0913
-        self,
-        e_id: str,
-        title: str,
-        start: datetime,
-        end: datetime,
-        loc: str | None = None,
-        desc: str | None = None,
-    ) -> None:
-        """Initialize mock event."""
-        self._id = e_id
-        self._title = title
-        self._start_time = start
-        self._end_time = end
-        self._location = loc
-        self._description = desc
-
-    @property
-    def id(self) -> str:
-        """Return event ID."""
-        return self._id
-
-    @property
-    def title(self) -> str:
-        """Return event title."""
-        return self._title
-
-    @property
-    def start_time(self) -> datetime:
-        """Return event start time."""
-        return self._start_time
-
-    @property
-    def end_time(self) -> datetime:
-        """Return event end time."""
-        return self._end_time
-
-    @property
-    def location(self) -> str | None:
-        """Return event location."""
-        return self._location
-
-    @property
-    def description(self) -> str | None:
-        """Return event description."""
-        return self._description
 
 
 def test_google_client_get_event_with_mock() -> None:
@@ -205,9 +153,8 @@ def test_google_client_create_event_with_mock() -> None:
 
         start = datetime(2026, 2, 20, 10, 0, tzinfo=UTC)
         end = datetime(2026, 2, 20, 11, 0, tzinfo=UTC)
-        input_event = MockEvent("ignore", "New Event", start, end)
 
-        new_event = client.create_event(input_event)
+        new_event = client.create_event(title="New Event", start=start, end=end)
 
         mock_events.insert.assert_called_once()
         _, kwargs = mock_events.insert.call_args
@@ -236,9 +183,10 @@ def test_google_client_update_event_with_mock() -> None:
 
         start = datetime(2026, 2, 21, 10, 0, tzinfo=UTC)
         end = datetime(2026, 2, 21, 11, 0, tzinfo=UTC)
-        input_event = MockEvent("update_123", "Updated Event", start, end)
 
-        updated_event = client.update_event(input_event)
+        updated_event = client.update_event(
+            "update_123", title="Updated Event", start_time=start, end_time=end
+        )
 
         mock_events.update.assert_called_once()
         _, kwargs = mock_events.update.call_args

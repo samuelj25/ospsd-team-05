@@ -177,7 +177,8 @@ class WebOAuthManager:
         self.client_id: str = client_id or os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
         self.client_secret: str = client_secret or os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "")
         self.redirect_uri: str = redirect_uri or os.environ.get(
-            "OAUTH_REDIRECT_URI", "http://localhost:8000/auth/callback",
+            "OAUTH_REDIRECT_URI",
+            "http://localhost:8000/auth/callback",
         )
 
         if not self.client_id:
@@ -300,7 +301,9 @@ class WebOAuthManager:
         return session_id in self._sessions
 
     def seed_session_from_token_file(
-        self, session_id: str, token_path: str | None = None,
+        self,
+        session_id: str,
+        token_path: str | None = None,
     ) -> None:
         """
         Pre-seed an authenticated session from a local ``token.json`` file.
@@ -326,7 +329,8 @@ class WebOAuthManager:
 
         """
         resolved = token_path or os.environ.get(
-            "GOOGLE_OAUTH_TOKEN_PATH", _DEFAULT_TOKEN_PATH,
+            "GOOGLE_OAUTH_TOKEN_PATH",
+            _DEFAULT_TOKEN_PATH,
         )
         if not Path(resolved).exists():
             msg = (
@@ -336,7 +340,8 @@ class WebOAuthManager:
             raise FileNotFoundError(msg)
 
         creds: Credentials = Credentials.from_authorized_user_file(  # type: ignore[no-untyped-call]
-            resolved, SCOPES,
+            resolved,
+            SCOPES,
         )
 
         # Refresh silently if the token has expired.
