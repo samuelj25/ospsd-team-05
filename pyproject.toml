@@ -3,7 +3,7 @@ name = "ospsd-team-05"
 version = "0.1.0"
 description = "Repository for a calendar client"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = []
 
 [tool.uv.workspace]
@@ -13,6 +13,9 @@ members = [
     "components/calendar_client_service",
     "components/calendar_client_service_api_client",
     "components/calendar_client_adapter",
+    "components/ai_client_api",
+    "components/gemini_ai_client_impl",
+    "components/slack_chat_adapter",
 ]
 
 [tool.ruff]
@@ -44,6 +47,9 @@ mypy_path = [
     "components/calendar_client_service/src",
     "components/calendar_client_adapter/src",
     "components/calendar_client_service_api_client",
+    "components/ai_client_api/src",
+    "components/gemini_ai_client_impl/src",
+    "components/slack_chat_adapter/src",
     "tests",
     "components/google_calendar_client_impl/tests",
     "components/calendar_client_adapter/tests",
@@ -55,7 +61,10 @@ module = [
     "google.auth.*",
     "google.oauth2.*",
     "google_auth_oauthlib.*",
+    "google.generativeai.*",
     "calendar_client_service_api_client.*",
+    "slack_sdk.*",
+    "chat_client_api.*",
 ]
 ignore_missing_imports = true
 
@@ -74,6 +83,9 @@ pythonpath = [
   "components/calendar_client_service/src",
   "components/calendar_client_adapter/src",
   "components/calendar_client_service_api_client",
+  "components/ai_client_api/src",
+  "components/gemini_ai_client_impl/src",
+  "components/slack_chat_adapter/src",
 ]
 testpaths = ["tests", "components/*/tests"]
 addopts = [
@@ -123,3 +135,6 @@ dev = [
     "types-python-dateutil>=2.9.0.20260305",
     "uvicorn>=0.42.0",
 ]
+
+[tool.uv.sources]
+ospsd-calendar-api = { git = "https://github.com/DeMoliT1on/ospsd-calendar-api" }

@@ -3,12 +3,18 @@
 from __future__ import annotations
 
 import os
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from dotenv import load_dotenv
 from fastapi import Cookie, Depends, HTTPException, status
+from gemini_ai_client_impl.client import GeminiAIClient
 from google_calendar_client_impl.auth import WebOAuthManager
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
+from slack_chat_adapter.adapter import SlackChatAdapter
+
+if TYPE_CHECKING:
+    from ai_client_api.client import AbstractAIClient
+    from chat_client_api.client import ChatClient
 
 # ---------------------------------------------------------------------------
 # Singleton OAuth manager
@@ -71,6 +77,10 @@ def get_calendar_client(
             expired / is unknown.
 
     """
+    # Fallback to the pre-seeded service account session for background workers/webhooks
+    if session_id is None:
+        session_id = os.environ.get("E2E_SESSION_ID")
+
     if session_id is None or not oauth_manager.is_authenticated(session_id):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -87,3 +97,51 @@ def get_calendar_client(
     client = GoogleCalendarClient()
     client.connect_with_credentials(creds)
     return client
+
+
+# ---------------------------------------------------------------------------
+# AI client (singleton, env-var driven)
+# ---------------------------------------------------------------------------
+
+_ai_client: AbstractAIClient | None = None
+
+
+def get_ai_client() -> AbstractAIClient:
+    """
+    Return the singleton GeminiAIClient, constructing it on first call.
+
+    Reads ``GEMINI_API_KEY`` from the environment.
+
+    Raises:
+        RuntimeError: If ``GEMINI_API_KEY`` is not set.
+
+    """
+    global _ai_client  # noqa: PLW0603
+    if _ai_client is None:
+        load_dotenv()
+        _ai_client = GeminiAIClient(model_name="gemma-4-31b-it")
+    return _ai_client
+
+
+# ---------------------------------------------------------------------------
+# Slack chat client (singleton, env-var driven)
+# ---------------------------------------------------------------------------
+
+_slack_client: ChatClient | None = None
+
+
+def get_slack_client() -> ChatClient:
+    """
+    Return the singleton SlackChatAdapter, constructing it on first call.
+
+    Reads ``SLACK_BOT_TOKEN`` from the environment.
+
+    Raises:
+        RuntimeError: If ``SLACK_BOT_TOKEN`` is not set.
+
+    """
+    global _slack_client  # noqa: PLW0603
+    if _slack_client is None:
+        load_dotenv()
+        _slack_client = SlackChatAdapter()
+    return _slack_client

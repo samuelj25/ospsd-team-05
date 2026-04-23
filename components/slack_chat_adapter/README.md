@@ -1,0 +1,1 @@
+# Slack Chat Adapter
