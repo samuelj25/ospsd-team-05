@@ -13,6 +13,9 @@ dependencies = [
     "ai-client-api",
     "gemini-ai-client-impl",
     "slack-chat-adapter",
+    "opentelemetry-sdk>=1.24",
+    "opentelemetry-instrumentation-fastapi>=0.45b0",
+    "opentelemetry-exporter-gcp-trace>=1.6",
 ]
 
 [project.optional-dependencies]

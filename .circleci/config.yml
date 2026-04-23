@@ -163,20 +163,60 @@ jobs:
           path: test-results/e2e
           destination: test-results/e2e
 
-  deploy_to_render:
+  docker_build_push:
     docker:
       - image: cimg/base:current
     steps:
+      - checkout
+      - setup_remote_docker:
+          version: default
       - run:
-          name: "Trigger Render Deployment"
+          name: "Authenticate to Google Artifact Registry"
           command: |
-             if [ -z "$RENDER_DEPLOY_HOOK_URL" ]; then
-                 echo "Error: RENDER_DEPLOY_HOOK_URL environment variable is not set."
-                 exit 1
-             fi
-             echo "Triggering Render deployment..."
-             curl -X GET "$RENDER_DEPLOY_HOOK_URL"
-             echo -e "\nDeployment triggered successfully!"
+            echo "$GCP_SA_KEY_B64" | base64 --decode > /tmp/gcp-key.json
+            cat /tmp/gcp-key.json | docker login -u _json_key --password-stdin \
+              https://${GCP_REGION}-docker.pkg.dev
+
+      - run:
+          name: "Build and push Docker image"
+          command: |
+            IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
+            docker build -t "$IMAGE_TAG" .
+            docker push "$IMAGE_TAG"
+            # Also tag as :latest for convenience
+            docker tag "$IMAGE_TAG" \
+              "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:latest"
+            docker push \
+              "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:latest"
+            # Export the image URL for downstream jobs
+            echo "export IMAGE_URL=$IMAGE_TAG" >> $BASH_ENV
+
+  deploy_to_cloud_run:
+    docker:
+      - image: hashicorp/terraform:1.8
+    steps:
+      - checkout
+      - run:
+          name: "Deploy to Cloud Run"
+          command: |
+            export GOOGLE_CREDENTIALS=$(printf '%s' "$GCP_SA_KEY_B64" | tr -d ' \n\r' | base64 -d)
+
+            # Verify credentials loaded correctly
+            echo "$GOOGLE_CREDENTIALS" | head -c 30
+
+            # Write tfvars — no secret values, they live in GCP Secret Manager
+            IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
+            cat > infra/terraform.tfvars \<<EOF
+            project_id     = "${GCP_PROJECT_ID}"
+            region         = "${GCP_REGION}"
+            service_name   = "calendar-client-service"
+            image_url      = "${IMAGE_TAG}"
+            enable_service = true
+            EOF
+
+            terraform -chdir=infra init
+            terraform -chdir=infra apply -auto-approve
+            terraform -chdir=infra output service_url
 
 workflows:
   build_and_test:
@@ -192,8 +232,13 @@ workflows:
           requires: [unit_tests]
       - e2e_tests:
           requires: [integration_tests]
-      - deploy_to_render:
+      - docker_build_push:
           requires: [e2e_tests]
+          filters:
+            branches:
+              only: hw3
+      - deploy_to_cloud_run:
+          requires: [docker_build_push]
           filters:
             branches:
               only: hw3

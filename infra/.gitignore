@@ -1,0 +1,21 @@
+# Never commit real tfvars — they contain secrets
+terraform.tfvars
+
+# Terraform state files — store remotely (GCS backend) in production
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform working directory
+.terraform/
+.terraform.lock.hcl
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Override files (local developer overrides)
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json

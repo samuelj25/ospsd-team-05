@@ -43,7 +43,7 @@ class TestHealth:
     def test_returns_200(self, client: TestClient) -> None:
         """Health endpoint returns HTTP 200."""
         response = client.get("/health")
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
 
     def test_returns_ok_status(self, client: TestClient) -> None:
         """Health endpoint returns {"status": "ok"}."""
@@ -62,7 +62,7 @@ class TestAuthLogin:
     def test_redirects_to_google(self, client: TestClient) -> None:
         """Login redirects to the URL returned by get_authorization_url."""
         response = client.get("/auth/login")
-        assert response.status_code == 302  # noqa: PLR2004
+        assert response.status_code == 302
         assert response.headers["location"] == "https://google.com/auth?foo=bar"
 
     def test_calls_get_authorization_url(
@@ -93,7 +93,7 @@ class TestAuthCallback:
 
         response = client.get("/auth/callback", params={"code": "valid-code"})
 
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert "session_id" in response.cookies
         assert response.cookies["session_id"] == "test-session-id"
 
@@ -121,7 +121,7 @@ class TestAuthCallback:
 
         response = client.get("/auth/callback", params={"code": "bad-code"})
 
-        assert response.status_code == 400  # noqa: PLR2004
+        assert response.status_code == 400
         assert "bad code" in response.json()["detail"]
 
 
@@ -143,7 +143,7 @@ class TestAuthStatus:
 
         response = client.get("/auth/status")
 
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert response.json()["authenticated"] is False
 
     def test_authenticated_when_valid_session(
@@ -156,7 +156,7 @@ class TestAuthStatus:
 
         response = client.get("/auth/status", cookies={"session_id": "active-session"})
 
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert response.json()["authenticated"] is True
 
 
@@ -177,10 +177,10 @@ class TestAuthLogout:
         response = client.post("/auth/logout", cookies={"session_id": "my-session"})
 
         mock_oauth_manager.revoke_session.assert_called_once_with("my-session")
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert response.json()["authenticated"] is False
 
     def test_logout_without_cookie_does_not_raise(self, client: TestClient) -> None:
         """Logout without a session cookie completes without error."""
         response = client.post("/auth/logout")
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
