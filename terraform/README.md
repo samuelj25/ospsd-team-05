@@ -40,17 +40,26 @@ terraform plan
 terraform apply
 ```
 
-## Adding HW3 Chat Integration Credentials
+## Adding Slack Integration Credentials
 
-Once the chat team integration is confirmed:
-1. Uncomment the relevant variable in `variables.tf`
-2. Uncomment the relevant `env_vars` block in `main.tf`
-3. Add the real value to `terraform.tfvars`
+Now that Slack has been confirmed as the chat vertical integration:
+1. Uncomment `slack_bot_token` in `variables.tf`
+2. Uncomment the `SLACK_BOT_TOKEN` block in `main.tf`
+3. Add the real Slack bot token to `terraform.tfvars`
 4. Run `terraform apply`
 
-## Getting Your Anthropic API Key
+To get a Slack bot token:
+1. Go to `api.slack.com/apps`
+2. Create a new app → From scratch
+3. Add OAuth scopes: `chat:write`, `channels:read`, `channels:history`
+4. Install to workspace
+5. Copy the Bot User OAuth Token (starts with `xoxb-`)
 
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Sign in or create an account
-3. Navigate to API Keys
-4. Create a new key and copy it into `terraform.tfvars` as `anthropic_api_key`
+## Getting Your Gemini API Key
+
+1. Go to [aistudio.google.com](https://aistudio.google.com)
+2. Sign in with your Google account
+3. Click **Get API Key** → **Create API key**
+4. Copy the key (starts with `AIza-`) into `terraform.tfvars` as `gemini_api_key`
+
+Note: You can use the same GCP project already set up for Google Calendar.

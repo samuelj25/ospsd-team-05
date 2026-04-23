@@ -14,23 +14,15 @@ provider "render" {
   owner_id = var.render_owner_id
 }
 
-# ---------------------------------------------------------------------------
-# Calendar Client Service — Render Web Service
-#
-# This resource manages the deployed FastAPI service on Render.
-#
-# FIRST-TIME SETUP: Since this service was created manually in HW2, run:
-#   terraform import render_web_service.calendar_service <render_service_id>
-# once to bring it under Terraform management before running terraform apply.
-# ---------------------------------------------------------------------------
-
 resource "render_web_service" "calendar_service" {
   name   = "ospsd-team-05"
-  region = "oregon"
-  plan   = "free"
+  region = "virginia"
+  plan   = "free"w
 
   runtime_source = {
     docker = {
+      repo_url        = "https://github.com/samuelj25/ospsd-team-05"
+      branch          = "main"
       dockerfile_path = "./Dockerfile"
       context         = "."
     }
