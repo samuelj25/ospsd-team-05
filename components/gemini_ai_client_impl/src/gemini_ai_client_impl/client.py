@@ -5,13 +5,17 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import google.generativeai as genai
 from ai_client_api.client import AbstractAIClient
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from ai_client_api.models import ToolDefinition, ToolResult
+    from google.generativeai import ChatSession  # type: ignore[attr-defined]
+    from google.generativeai.types import GenerateContentResponse
 
 logger = logging.getLogger(__name__)
 
@@ -79,58 +83,37 @@ class GeminiAIClient(AbstractAIClient):
         genai.configure(api_key=resolved_key) # type: ignore[attr-defined]
         self._model_name = model_name
 
-    def send_message(
+    def _run_tool_loop(
         self,
-        prompt: str,
-        tools: list[ToolDefinition] | None = None,
-        context: list[dict[str, Any]] | None = None,
-        *,
-        tool_dispatcher: ( # type: ignore[valid-type]
-            ToolDispatcher | None
-        ) = None,
-    ) -> str:
+        chat: ChatSession,
+        response: GenerateContentResponse,
+        tool_dispatcher: ToolDispatcher | None,
+    ) -> GenerateContentResponse:
         """
-        Send *prompt* to Gemini and return the final text response.
+        Run the Gemini tool-call round-trip loop.
 
-        If *tools* are provided the model may emit function-call requests.
-        When a ``tool_dispatcher`` callable is also supplied each function
-        call is dispatched automatically and the result fed back to the
-        model.  The loop continues until Gemini returns a plain-text part
-        or ``_MAX_TOOL_ROUNDS`` is reached.
+        Repeatedly checks the response for function-call parts, dispatches
+        them via ``tool_dispatcher``, and feeds results back to the model.
+        Stops when Gemini returns a plain-text response or ``_MAX_TOOL_ROUNDS``
+        is reached.
 
         Args:
-            prompt: User message.
-            tools: Optional tool definitions the model may call.
-            context: Prior conversation turns (ignored in this implementation
-                     — Gemini multi-turn is handled via ``ChatSession``).
+            chat: Active ``ChatSession`` instance.
+            response: The initial model response to inspect.
             tool_dispatcher: Optional callable ``(name, args) -> ToolResult``
-                             used to execute tool calls.
+                            used to execute tool calls.
 
         Returns:
-            The model's final plain-text reply.
+            The final model response after all tool rounds are complete.
 
         """
-        gemini_tools = [_to_gemini_tool(t) for t in tools] if tools else None
-        model = genai.GenerativeModel(  # type: ignore[attr-defined]
-            model_name=self._model_name,
-            tools=gemini_tools,
-        )
-
-        gemini_history: list[Any] = []
-        if context:
-            gemini_history.extend({"role": msg["role"], "parts": [msg["content"]]} for msg in context)  # noqa: E501
-
-        chat = model.start_chat(history=gemini_history)
-
-        response = chat.send_message(prompt)
-
         for _ in range(_MAX_TOOL_ROUNDS):
-            # Collect any function calls in this response turn
             fn_calls = [
                 part.function_call
                 for candidate in response.candidates
                 for part in candidate.content.parts
                 if part.function_call.name  # non-empty name means it's a real call
+                and not getattr(part, "thought", False)
             ]
 
             if not fn_calls:
@@ -140,7 +123,6 @@ class GeminiAIClient(AbstractAIClient):
                 logger.warning("Gemini requested tool calls but no dispatcher supplied.")
                 break
 
-            # Execute each function call and feed results back
             tool_response_parts = []
             for fn_call in fn_calls:
                 args: dict[str, Any] = dict(fn_call.args)
@@ -157,14 +139,66 @@ class GeminiAIClient(AbstractAIClient):
 
             response = chat.send_message(tool_response_parts)
 
-        # Extract the final text from the last response
+        return response
+
+
+    def send_message(
+        self,
+        prompt: str,
+        tools: list[ToolDefinition] | None = None,
+        context: list[dict[str, Any]] | None = None,
+        *,
+        tool_dispatcher: ToolDispatcher | None = None,
+    ) -> str:
+        """
+        Send *prompt* to Gemini and return the final text response.
+
+        If *tools* are provided the model may emit function-call requests.
+        When a ``tool_dispatcher`` callable is also supplied each function
+        call is dispatched automatically and the result fed back to the
+        model.  The loop continues until Gemini returns a plain-text part
+        or ``_MAX_TOOL_ROUNDS`` is reached.
+
+        Args:
+            prompt: User message.
+            tools: Optional tool definitions the model may call.
+            context: Prior conversation turns (ignored in this implementation
+                    — Gemini multi-turn is handled via ``ChatSession``).
+            tool_dispatcher: Optional callable ``(name, args) -> ToolResult``
+                            used to execute tool calls.
+
+        Returns:
+            The model's final plain-text reply.
+
+        """
+        gemini_tools = [_to_gemini_tool(t) for t in tools] if tools else None
+        model = genai.GenerativeModel(  # type: ignore[attr-defined]
+            model_name=self._model_name,
+            tools=gemini_tools,
+        )
+
+        gemini_history: list[Any] = []
+        if context:
+            gemini_history.extend({"role": msg["role"], "parts": [msg["content"]]} for msg in context)  # noqa: E501
+
+        chat = model.start_chat(history=gemini_history)
+        response = chat.send_message(prompt)
+        response = self._run_tool_loop(chat, response, tool_dispatcher)
+
+        # Pass 1: prefer non-thought parts (avoids leaking chain-of-thought)
+        for candidate in response.candidates:
+            for part in candidate.content.parts:
+                if part.text and not getattr(part, "thought", False):
+                    return cast("str", part.text).strip()
+
+        # Pass 2: fallback — accept any text part (non-thinking models don't set 'thought')
         for candidate in response.candidates:
             for part in candidate.content.parts:
                 if part.text:
-                    return part.text.strip() # type: ignore[no-any-return]
+                    return cast("str", part.text).strip()
 
         return json.dumps({"raw": str(response)})
 
 
 # Type alias used in the send_message signature above
-ToolDispatcher = "Any"  # callable(name: str, args: dict) -> ToolResult
+ToolDispatcher: TypeAlias = "Callable[[str, dict[str, Any]], ToolResult]"

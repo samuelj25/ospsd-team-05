@@ -1,0 +1,5 @@
+project_id     = "your-gcp-project-id"
+region         = "us-east1"
+service_name   = "calendar-client-service"
+image_url      = "us-east1-docker.pkg.dev/your-project/your-repo/calendar-client-service:latest"
+enable_service = true

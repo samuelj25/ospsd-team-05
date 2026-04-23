@@ -64,7 +64,7 @@ def _wait_for_health(base_url: str, timeout: float = _STARTUP_TIMEOUT_S) -> None
     while time.monotonic() < deadline:
         try:
             resp = httpx.get(f"{base_url}/health", timeout=2)
-            if resp.status_code == 200:  # noqa: PLR2004
+            if resp.status_code == 200:
                 return
         except Exception as exc:  # noqa: BLE001
             last_exc = exc

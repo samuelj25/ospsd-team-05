@@ -13,6 +13,9 @@ COPY components/ ./components/
 # Also copy README as it is referenced in pyproject.toml
 COPY README.md ./
 
+# Install git (required for uv to fetch GitHub dependencies)
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+
 # Install dependencies in frozen mode (strict lock file) and skip dev-dependencies
 RUN uv sync --frozen --no-dev --all-packages
 
