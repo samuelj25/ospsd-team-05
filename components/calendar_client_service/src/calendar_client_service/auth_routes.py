@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
@@ -10,6 +11,7 @@ from google_calendar_client_impl.auth import WebOAuthManager  # noqa: TC002
 
 from calendar_client_service.dependencies import get_oauth_manager
 from calendar_client_service.models import AuthStatusResponse
+from calendar_client_service.slack_routes import map_slack_user_to_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -17,6 +19,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.get("/login", summary="Start OAuth 2.0 flow")
 def login(
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
+    slack_user_id: str | None = None,
 ) -> RedirectResponse:
     """
     Redirect the user's browser to the Google OAuth 2.0 consent page.
@@ -28,7 +31,10 @@ def login(
         A 302 redirect to the Google authorization URL.
 
     """
-    auth_url, _state = oauth_manager.get_authorization_url()
+    state = None
+    if slack_user_id:
+        state = f"{secrets.token_urlsafe(32)}::{slack_user_id}"
+    auth_url, _state = oauth_manager.get_authorization_url(state=state)
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
@@ -37,6 +43,7 @@ def callback(
     code: str,
     response: Response,
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
+    state: str | None = None,
 ) -> AuthStatusResponse:
     """
     Exchange the authorization code for tokens and create a session.
@@ -49,6 +56,7 @@ def callback(
         code: The authorization code from the Google redirect.
         response: The FastAPI response object (used to set the session cookie).
         oauth_manager: The singleton OAuth manager (injected by FastAPI).
+        state: Optional state parameter used to map the session back to a Slack user.
 
     Returns:
         An :class:`AuthStatusResponse` with ``authenticated=True`` and the new
@@ -66,6 +74,10 @@ def callback(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"OAuth code exchange failed: {exc}",
         ) from exc
+
+    if state and "::" in state:
+        _, slack_user_id = state.split("::", 1)
+        map_slack_user_to_session(slack_user_id, session_id)
 
     # Set the session_id as an HTTP-only cookie so the browser sends it
     # automatically on all subsequent requests.
