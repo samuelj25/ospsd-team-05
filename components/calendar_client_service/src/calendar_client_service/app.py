@@ -9,6 +9,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from calendar_client_service.auth_routes import router as auth_router
 from calendar_client_service.event_routes import router as event_router
 from calendar_client_service.models import HealthResponse
+from calendar_client_service.slack_routes import router as slack_router
 from calendar_client_service.task_routes import router as task_router
 
 
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     application.include_router(auth_router)
     application.include_router(event_router)
     application.include_router(task_router)
+    application.include_router(slack_router)
 
     # ------------------------------------------------------------------
     # Exception Handlers
