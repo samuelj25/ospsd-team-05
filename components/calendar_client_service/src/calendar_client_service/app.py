@@ -4,6 +4,7 @@ from calendar_client_api.exceptions import TaskNotFoundError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
+from prometheus_fastapi_instrumentator import Instrumentator
 
 from calendar_client_service.auth_routes import router as auth_router
 from calendar_client_service.event_routes import router as event_router
@@ -68,7 +69,9 @@ def create_app() -> FastAPI:
         )
 
     @application.exception_handler(TaskNotFoundError)
-    async def task_not_found_exception_handler(_: Request, exc: TaskNotFoundError) -> JSONResponse:
+    async def task_not_found_exception_handler(
+        _: Request, exc: TaskNotFoundError
+    ) -> JSONResponse:
         return JSONResponse(
             status_code=404,
             content={"message": str(exc)},
@@ -82,6 +85,16 @@ def create_app() -> FastAPI:
             status_code=400,
             content={"message": str(exc)},
         )
+
+    # ------------------------------------------------------------------
+    # Telemetry — Prometheus metrics exposed at /metrics
+    # Tracks request latency, success rate, and failure rate per endpoint.
+    # ------------------------------------------------------------------
+
+    Instrumentator(
+        should_group_status_codes=False,  # track 200/404/400/etc separately
+        excluded_handlers=["/metrics"],   # don't track metrics calls themselves
+    ).instrument(application).expose(application, tags=["telemetry"])
 
     return application
 
