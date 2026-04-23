@@ -9,6 +9,10 @@ dependencies = [
     "uvicorn[standard]>=0.34.0",
     "google-calendar-client-impl",
     "calendar-client-api",
+    "prometheus-fastapi-instrumentator>=7.0.0",
+    "ai-client-api",
+    "gemini-ai-client-impl",
+    "slack-chat-adapter",
 ]
 
 [project.optional-dependencies]
@@ -36,3 +40,6 @@ ignore = []
 [tool.uv.sources]
 calendar-client-api = { workspace = true }
 google-calendar-client-impl = { workspace = true }
+ai-client-api = { workspace = true }
+gemini-ai-client-impl = { workspace = true }
+slack-chat-adapter = { workspace = true }
