@@ -76,21 +76,15 @@ def test_task_conversions_via_endpoints(integration_live_client: GoogleCalendarC
 
     It uses client.get_task() endpoints over Live APIs.
     """
-    now = datetime.now(tz=UTC)
-    due = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
-
-    task_data = {
-        "id": "dummy",
-        "title": "Integration Task Conversions",
-        "due": due.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "status": "needsAction",
-    }
-
-    task_to_create = GoogleCalendarTask(task_data)
     created_id = None
     try:
+        now = datetime.now(tz=UTC)
+        due = (now + timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
         # Test create_task conversion
-        created = integration_live_client.create_task(task_to_create)
+        created = integration_live_client.create_task(
+            title="Integration Task Conversions",
+            due=due,
+        )
         created_id = created.id
         assert isinstance(created, GoogleCalendarTask)
         assert created.id is not None
@@ -123,13 +117,7 @@ def test_cleanup_functions_verify_resources_scrubbed(
     )
 
     due = (now + timedelta(days=2)).replace(hour=0, minute=0, second=0, microsecond=0)
-    task_data = {
-        "id": "dummy",
-        "title": "Integration Cleanup Task",
-        "due": due.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "status": "needsAction",
-    }
-    task = integration_live_client.create_task(GoogleCalendarTask(task_data))
+    task = integration_live_client.create_task(title="Integration Cleanup Task", due=due)
 
     # 2. Test cleanup explicit calls
     integration_live_client.delete_event(event.id)

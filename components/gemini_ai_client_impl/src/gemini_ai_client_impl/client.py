@@ -185,13 +185,13 @@ class GeminiAIClient(AbstractAIClient):
         response = chat.send_message(prompt)
         response = self._run_tool_loop(chat, response, tool_dispatcher)
 
-        # Pass 1: prefer non-thought parts (avoids leaking chain-of-thought)
+        # Pass 1: prefer non-thought parts
         for candidate in response.candidates:
             for part in candidate.content.parts:
-                if part.text and not getattr(part, "thought", False):
+                if part.text and not getattr(part, "thought", None):
                     return cast("str", part.text).strip()
 
-        # Pass 2: fallback — accept any text part (non-thinking models don't set 'thought')
+        # Pass 2: fallback
         for candidate in response.candidates:
             for part in candidate.content.parts:
                 if part.text:

@@ -70,8 +70,6 @@ def sync_detailed(
 
      Delete the task with the given ``task_id``.
 
-    TODO: Implement using ``client.delete_task(task_id)``.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -106,8 +104,6 @@ def sync(
 
      Delete the task with the given ``task_id``.
 
-    TODO: Implement using ``client.delete_task(task_id)``.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -136,8 +132,6 @@ async def asyncio_detailed(
     """Delete a task
 
      Delete the task with the given ``task_id``.
-
-    TODO: Implement using ``client.delete_task(task_id)``.
 
     Args:
         task_id (str):
@@ -170,8 +164,6 @@ async def asyncio(
     """Delete a task
 
      Delete the task with the given ``task_id``.
-
-    TODO: Implement using ``client.delete_task(task_id)``.
 
     Args:
         task_id (str):

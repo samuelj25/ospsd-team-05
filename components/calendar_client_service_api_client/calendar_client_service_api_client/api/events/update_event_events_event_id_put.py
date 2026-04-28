@@ -81,8 +81,6 @@ def sync_detailed(
 
      Update the event identified by ``event_id`` with data from ``payload``.
 
-    TODO: Build an Event object and call ``client.update_event(event)``.
-
     Args:
         event_id (str):
         session_id (None | str | Unset):
@@ -120,8 +118,6 @@ def sync(
 
      Update the event identified by ``event_id`` with data from ``payload``.
 
-    TODO: Build an Event object and call ``client.update_event(event)``.
-
     Args:
         event_id (str):
         session_id (None | str | Unset):
@@ -153,8 +149,6 @@ async def asyncio_detailed(
     """Update an event
 
      Update the event identified by ``event_id`` with data from ``payload``.
-
-    TODO: Build an Event object and call ``client.update_event(event)``.
 
     Args:
         event_id (str):
@@ -190,8 +184,6 @@ async def asyncio(
     """Update an event
 
      Update the event identified by ``event_id`` with data from ``payload``.
-
-    TODO: Build an Event object and call ``client.update_event(event)``.
 
     Args:
         event_id (str):

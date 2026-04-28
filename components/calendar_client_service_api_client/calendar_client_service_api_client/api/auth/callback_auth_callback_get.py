@@ -7,17 +7,25 @@ from ... import errors
 from ...client import AuthenticatedClient, Client
 from ...models.auth_status_response import AuthStatusResponse
 from ...models.http_validation_error import HTTPValidationError
-from ...types import UNSET, Response
+from ...types import UNSET, Response, Unset
 
 
 def _get_kwargs(
     *,
     code: str,
+    state: None | str | Unset = UNSET,
 ) -> dict[str, Any]:
 
     params: dict[str, Any] = {}
 
     params["code"] = code
+
+    json_state: None | str | Unset
+    if isinstance(state, Unset):
+        json_state = UNSET
+    else:
+        json_state = state
+    params["state"] = json_state
 
     params = {k: v for k, v in params.items() if v is not UNSET and v is not None}
 
@@ -64,6 +72,7 @@ def sync_detailed(
     *,
     client: AuthenticatedClient | Client,
     code: str,
+    state: None | str | Unset = UNSET,
 ) -> Response[AuthStatusResponse | HTTPValidationError]:
     """Handle OAuth 2.0 callback
 
@@ -77,6 +86,7 @@ def sync_detailed(
         code: The authorization code from the Google redirect.
         response: The FastAPI response object (used to set the session cookie).
         oauth_manager: The singleton OAuth manager (injected by FastAPI).
+        state: Optional state parameter used to map the session back to a Slack user.
 
     Returns:
         An :class:`AuthStatusResponse` with ``authenticated=True`` and the new
@@ -88,6 +98,7 @@ def sync_detailed(
 
     Args:
         code (str):
+        state (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -99,6 +110,7 @@ def sync_detailed(
 
     kwargs = _get_kwargs(
         code=code,
+        state=state,
     )
 
     response = client.get_httpx_client().request(
@@ -112,6 +124,7 @@ def sync(
     *,
     client: AuthenticatedClient | Client,
     code: str,
+    state: None | str | Unset = UNSET,
 ) -> AuthStatusResponse | HTTPValidationError | None:
     """Handle OAuth 2.0 callback
 
@@ -125,6 +138,7 @@ def sync(
         code: The authorization code from the Google redirect.
         response: The FastAPI response object (used to set the session cookie).
         oauth_manager: The singleton OAuth manager (injected by FastAPI).
+        state: Optional state parameter used to map the session back to a Slack user.
 
     Returns:
         An :class:`AuthStatusResponse` with ``authenticated=True`` and the new
@@ -136,6 +150,7 @@ def sync(
 
     Args:
         code (str):
+        state (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -148,6 +163,7 @@ def sync(
     return sync_detailed(
         client=client,
         code=code,
+        state=state,
     ).parsed
 
 
@@ -155,6 +171,7 @@ async def asyncio_detailed(
     *,
     client: AuthenticatedClient | Client,
     code: str,
+    state: None | str | Unset = UNSET,
 ) -> Response[AuthStatusResponse | HTTPValidationError]:
     """Handle OAuth 2.0 callback
 
@@ -168,6 +185,7 @@ async def asyncio_detailed(
         code: The authorization code from the Google redirect.
         response: The FastAPI response object (used to set the session cookie).
         oauth_manager: The singleton OAuth manager (injected by FastAPI).
+        state: Optional state parameter used to map the session back to a Slack user.
 
     Returns:
         An :class:`AuthStatusResponse` with ``authenticated=True`` and the new
@@ -179,6 +197,7 @@ async def asyncio_detailed(
 
     Args:
         code (str):
+        state (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -190,6 +209,7 @@ async def asyncio_detailed(
 
     kwargs = _get_kwargs(
         code=code,
+        state=state,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -201,6 +221,7 @@ async def asyncio(
     *,
     client: AuthenticatedClient | Client,
     code: str,
+    state: None | str | Unset = UNSET,
 ) -> AuthStatusResponse | HTTPValidationError | None:
     """Handle OAuth 2.0 callback
 
@@ -214,6 +235,7 @@ async def asyncio(
         code: The authorization code from the Google redirect.
         response: The FastAPI response object (used to set the session cookie).
         oauth_manager: The singleton OAuth manager (injected by FastAPI).
+        state: Optional state parameter used to map the session back to a Slack user.
 
     Returns:
         An :class:`AuthStatusResponse` with ``authenticated=True`` and the new
@@ -225,6 +247,7 @@ async def asyncio(
 
     Args:
         code (str):
+        state (None | str | Unset):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
@@ -238,5 +261,6 @@ async def asyncio(
         await asyncio_detailed(
             client=client,
             code=code,
+            state=state,
         )
     ).parsed

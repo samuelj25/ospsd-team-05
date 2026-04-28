@@ -72,9 +72,6 @@ def sync_detailed(
 
      Mark the task identified by ``task_id`` as completed.
 
-    TODO: Implement using ``client.mark_task_completed(task_id)``, then fetch
-    and return the updated task.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -109,9 +106,6 @@ def sync(
 
      Mark the task identified by ``task_id`` as completed.
 
-    TODO: Implement using ``client.mark_task_completed(task_id)``, then fetch
-    and return the updated task.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -140,9 +134,6 @@ async def asyncio_detailed(
     """Mark task complete
 
      Mark the task identified by ``task_id`` as completed.
-
-    TODO: Implement using ``client.mark_task_completed(task_id)``, then fetch
-    and return the updated task.
 
     Args:
         task_id (str):
@@ -175,9 +166,6 @@ async def asyncio(
     """Mark task complete
 
      Mark the task identified by ``task_id`` as completed.
-
-    TODO: Implement using ``client.mark_task_completed(task_id)``, then fetch
-    and return the updated task.
 
     Args:
         task_id (str):

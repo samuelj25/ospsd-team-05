@@ -12,7 +12,6 @@ from ai_client_api.models import ToolDefinition, ToolResult
 if TYPE_CHECKING:
     from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 
-from google_calendar_client_impl.task_impl import GoogleCalendarTask
 
 logger = logging.getLogger(__name__)
 
@@ -251,31 +250,36 @@ def _dispatch_task_tool(
         start = datetime.fromisoformat(args["start"]).astimezone(UTC)
         end   = datetime.fromisoformat(args["end"]).astimezone(UTC)
         payload = [
-            {"id": t.id, "title": t.title, "due": t.end_time.isoformat(),
-             "description": t.description, "is_completed": t.is_completed}
+            {
+                "id": t.id,
+                "title": t.title,
+                "due": t.end_time.isoformat() if t.end_time else None,
+                "description": t.description,
+                "is_completed": t.is_completed
+            }
             for t in client.get_tasks(start, end)
         ]
         return ToolResult(tool_name=tool_name, content=json.dumps(payload))
 
     if tool_name == "create_task":
-        due = datetime.fromisoformat(args["due"]).astimezone(UTC)
-        raw = {
-            "title": args["title"],
-            "due": due.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-            "status": "needsAction",
-            "notes": args.get("description", ""),
-        }
-        created = client.create_task(GoogleCalendarTask(raw))
-        return ToolResult(tool_name=tool_name, content=json.dumps(
-            {"id": created.id, "title": created.title, "due": created.end_time.isoformat()}
-        ))
+        due = datetime.fromisoformat(args["due"]).astimezone(UTC) if args.get("due") else None
+        created = client.create_task(
+            title=args["title"], due=due, description=args.get("description", ""))
+        return ToolResult(tool_name=tool_name, content=json.dumps({
+            "id": created.id,
+            "title": created.title,
+            "due": created.end_time.isoformat() if created.end_time else None
+        }))
 
     if tool_name == "get_task":
         task = client.get_task(args["task_id"])
-        return ToolResult(tool_name=tool_name, content=json.dumps(
-            {"id": task.id, "title": task.title, "due": task.end_time.isoformat(),
-             "description": task.description, "is_completed": task.is_completed}
-        ))
+        return ToolResult(tool_name=tool_name, content=json.dumps({
+            "id": task.id,
+            "title": task.title,
+            "due": task.end_time.isoformat() if task.end_time else None,
+            "description": task.description,
+            "is_completed": task.is_completed
+        }))
 
     if tool_name == "update_task":
         existing = client.get_task(args["task_id"])
@@ -285,17 +289,18 @@ def _dispatch_task_tool(
             else existing.end_time
         )
         is_completed = args.get("is_completed", existing.is_completed)
-        raw = {
-            "id": args["task_id"],
-            "title": args.get("title", existing.title),
-            "due": due.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-            "status": "completed" if is_completed else "needsAction",
-            "notes": args.get("description", existing.description or ""),
-        }
-        updated = client.update_task(GoogleCalendarTask(raw))
-        return ToolResult(tool_name=tool_name, content=json.dumps(
-            {"id": updated.id, "title": updated.title, "due": updated.end_time.isoformat()}
-        ))
+        updated = client.update_task(
+            task_id=args["task_id"],
+            title=args.get("title", existing.title),
+            due=due,
+            is_completed=is_completed,
+            description=args.get("description", existing.description or "")
+        )
+        return ToolResult(tool_name=tool_name, content=json.dumps({
+            "id": updated.id,
+            "title": updated.title,
+            "due": updated.end_time.isoformat() if updated.end_time else None
+        }))
 
     if tool_name in _TASK_COMPLETION_TOOLS:
         if tool_name == "delete_task":

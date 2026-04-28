@@ -53,6 +53,12 @@ resource "google_project_iam_member" "run_sa_cloud_trace" {
   member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
+resource "google_project_iam_member" "run_sa_cloud_monitoring" {
+  project = var.project_id
+  role    = "roles/monitoring.metricWriter"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
 # Cloud Run service — gated by enable_service for 2-step bootstrap
 resource "google_cloud_run_v2_service" "calendar_service" {
   count    = var.enable_service ? 1 : 0
@@ -171,6 +177,7 @@ resource "google_cloud_run_v2_service" "calendar_service" {
     google_secret_manager_secret_iam_member.run_sa_oauth_client_id,
     google_secret_manager_secret_iam_member.run_sa_oauth_client_secret,
     google_project_iam_member.run_sa_cloud_trace,
+    google_project_iam_member.run_sa_cloud_monitoring,
   ]
 }
 

@@ -76,8 +76,6 @@ def sync_detailed(
 
      Create a new task from ``payload``.
 
-    TODO: Build a Task object from payload fields and call ``client.create_task(task)``.
-
     Args:
         session_id (None | str | Unset):
         body (TaskCreate): Payload for creating a new task.
@@ -112,8 +110,6 @@ def sync(
 
      Create a new task from ``payload``.
 
-    TODO: Build a Task object from payload fields and call ``client.create_task(task)``.
-
     Args:
         session_id (None | str | Unset):
         body (TaskCreate): Payload for creating a new task.
@@ -142,8 +138,6 @@ async def asyncio_detailed(
     """Create a task
 
      Create a new task from ``payload``.
-
-    TODO: Build a Task object from payload fields and call ``client.create_task(task)``.
 
     Args:
         session_id (None | str | Unset):
@@ -176,8 +170,6 @@ async def asyncio(
     """Create a task
 
      Create a new task from ``payload``.
-
-    TODO: Build a Task object from payload fields and call ``client.create_task(task)``.
 
     Args:
         session_id (None | str | Unset):
