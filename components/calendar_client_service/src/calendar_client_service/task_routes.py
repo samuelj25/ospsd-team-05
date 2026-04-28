@@ -3,65 +3,26 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
-from calendar_client_api.task import Task
 from fastapi import APIRouter, Depends, HTTPException
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient  # noqa: TC002
 
 from calendar_client_service.dependencies import get_calendar_client
 from calendar_client_service.models import TaskCreate, TaskResponse, TaskUpdate
 
-
-class _ServiceTask(Task):
-    def __init__(  # noqa: PLR0913
-        self,
-        t_id: str,
-        title: str,
-        start: datetime,
-        end: datetime,
-        *,
-        completed: bool,
-        desc: str | None,
-    ) -> None:
-        self._id = t_id
-        self._title = title
-        self._start = start
-        self._end = end
-        self._completed = completed
-        self._desc = desc
-
-    @property
-    def id(self) -> str:
-        return self._id
-
-    @property
-    def title(self) -> str:
-        return self._title
-
-    @property
-    def start_time(self) -> datetime:
-        return self._start
-
-    @property
-    def end_time(self) -> datetime:
-        return self._end
-
-    @property
-    def is_completed(self) -> bool:
-        return self._completed
-
-    @property
-    def description(self) -> str | None:
-        return self._desc
+if TYPE_CHECKING:
+    from calendar_client_api.task import Task
 
 
 def _to_task_response(t: Task) -> TaskResponse:
+    # Provide fallback for strict datetime Pydantic models when Google returns None
+    now = datetime.now(tz=UTC)
     return TaskResponse(
         id=t.id,
         title=t.title,
-        start_time=t.start_time,
-        end_time=t.end_time,
+        start_time=t.start_time or now,
+        end_time=t.end_time or now,
         description=t.description,
         is_completed=t.is_completed,
     )
@@ -97,16 +58,12 @@ def create_task(
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> TaskResponse:
     """Create a new task from ``payload``."""
-    now = datetime.now(tz=UTC)  # Fallback for tasks which only have end_time in create payload
-    tk = _ServiceTask(
-        t_id="",
+    # Pass properties directly instead of building a middleman class
+    t = client.create_task(
         title=payload.title,
-        start=now,
-        end=payload.end_time,
-        completed=False,
-        desc=payload.description,
+        due=payload.end_time,
+        description=payload.description
     )
-    t = client.create_task(tk)
     return _to_task_response(t)
 
 
@@ -117,18 +74,16 @@ def update_task(
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> TaskResponse:
     """Update the task identified by ``task_id`` with data from ``payload``."""
-    existing_task = client.get_task(task_id)
     if task_id != payload.id:
         raise HTTPException(status_code=422, detail="Task ID in path and payload must match")
-    tk = _ServiceTask(
-        t_id=payload.id,
+
+    t = client.update_task(
+        task_id=task_id,
         title=payload.title,
-        start=existing_task.start_time,
-        end=payload.end_time,
-        completed=payload.is_completed,
-        desc=payload.description,
+        due=payload.end_time,
+        is_completed=payload.is_completed,
+        description=payload.description
     )
-    t = client.update_task(tk)
     return _to_task_response(t)
 
 

@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from calendar_client_adapter.adapter import ServiceAdapterClient
-from calendar_client_api import Task, TaskNotFoundError
+from calendar_client_api import TaskNotFoundError
 
 
 @pytest.mark.e2e
@@ -13,10 +13,8 @@ def test_task_lifecycle(live_client: ServiceAdapterClient) -> None:
     now = datetime.now(tz=UTC)
     due = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # 1. Create Task
-    created = live_client.create_task(
-        _make_task(title="E2E Lifecycle Task", end_time=due),
-    )
+    # 1. Create Task (Passed as positional arguments to resolve kwargs mypy error)
+    created = live_client.create_task("E2E Lifecycle Task", due)
     assert created.id is not None
     assert created.title == "E2E Lifecycle Task"
     assert created.is_completed is False
@@ -41,67 +39,3 @@ def test_task_lifecycle(live_client: ServiceAdapterClient) -> None:
         # Verify it is deleted — the adapter raises TaskNotFoundError on 404.
         with pytest.raises(TaskNotFoundError):
             live_client.get_task(created.id)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-class _SimpleTask(Task):
-    """Minimal in-process Task implementation for constructing request payloads."""
-
-    def __init__(
-        self,
-        title: str,
-        end_time: datetime,
-        task_id: str = "",
-        is_completed: bool = False,  # noqa: FBT001, FBT002
-        description: str | None = None,
-    ) -> None:
-        self._id = task_id
-        self._title = title
-        self._end = end_time
-        self._is_completed = is_completed
-        self._description = description
-
-    @property
-    def id(self) -> str:
-        return self._id
-
-    @property
-    def title(self) -> str:
-        return self._title
-
-    @property
-    def start_time(self) -> datetime:
-        # Tasks don't have a meaningful start time; return end_time as a stub.
-        return self._end
-
-    @property
-    def end_time(self) -> datetime:
-        return self._end
-
-    @property
-    def is_completed(self) -> bool:
-        return self._is_completed
-
-    @property
-    def description(self) -> str | None:
-        return self._description
-
-
-def _make_task(
-    title: str,
-    end_time: datetime,
-    task_id: str = "",
-    is_completed: bool = False,  # noqa: FBT001, FBT002
-    description: str | None = None,
-) -> _SimpleTask:
-    return _SimpleTask(
-        title=title,
-        end_time=end_time,
-        task_id=task_id,
-        is_completed=is_completed,
-        description=description,
-    )

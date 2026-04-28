@@ -81,8 +81,6 @@ def sync_detailed(
 
      Update the task identified by ``task_id`` with data from ``payload``.
 
-    TODO: Build a Task object and call ``client.update_task(task)``.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -120,8 +118,6 @@ def sync(
 
      Update the task identified by ``task_id`` with data from ``payload``.
 
-    TODO: Build a Task object and call ``client.update_task(task)``.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -153,8 +149,6 @@ async def asyncio_detailed(
     """Update a task
 
      Update the task identified by ``task_id`` with data from ``payload``.
-
-    TODO: Build a Task object and call ``client.update_task(task)``.
 
     Args:
         task_id (str):
@@ -190,8 +184,6 @@ async def asyncio(
     """Update a task
 
      Update the task identified by ``task_id`` with data from ``payload``.
-
-    TODO: Build a Task object and call ``client.update_task(task)``.
 
     Args:
         task_id (str):

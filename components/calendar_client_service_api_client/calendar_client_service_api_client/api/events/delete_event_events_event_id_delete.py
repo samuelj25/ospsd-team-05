@@ -70,8 +70,6 @@ def sync_detailed(
 
      Delete the event with the given ``event_id``.
 
-    TODO: Implement using ``client.delete_event(event_id)``.
-
     Args:
         event_id (str):
         session_id (None | str | Unset):
@@ -106,8 +104,6 @@ def sync(
 
      Delete the event with the given ``event_id``.
 
-    TODO: Implement using ``client.delete_event(event_id)``.
-
     Args:
         event_id (str):
         session_id (None | str | Unset):
@@ -136,8 +132,6 @@ async def asyncio_detailed(
     """Delete an event
 
      Delete the event with the given ``event_id``.
-
-    TODO: Implement using ``client.delete_event(event_id)``.
 
     Args:
         event_id (str):
@@ -170,8 +164,6 @@ async def asyncio(
     """Delete an event
 
      Delete the event with the given ``event_id``.
-
-    TODO: Implement using ``client.delete_event(event_id)``.
 
     Args:
         event_id (str):

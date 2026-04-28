@@ -1,2 +1,2 @@
-project_name_override: "calendar-client-service-api-client"
+project_name_override: "calendar_client_service_api_client"
 package_name_override: "calendar_client_service_api_client"

@@ -379,64 +379,66 @@ class GoogleCalendarClient(calendar_client_api.Client):
 
         return GoogleCalendarTask(response)
 
-    def _task_to_dict(self, task: calendar_client_api.Task) -> dict[str, str]:
-        """
-        Convert a standard Task to a Google Tasks request body.
-
-        Google Tasks requires RFC 3339 timestamps ending in ``.000Z`` (UTC). This helper converts
-        the ``end_time`` to UTC, strips timezone info, and formats with the required suffix.
-        """
-        # Google Tasks API requires RFC 3339 with trailing Z (UTC).
-        # Convert to UTC, strip tzinfo, then format with .000Z suffix.
-        due_dt = task.end_time
-        if due_dt.tzinfo is not None:
-            due_dt = due_dt.astimezone(tz=UTC).replace(tzinfo=None)
-        body: dict[str, str] = {
-            "title": task.title,
-            "due": due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-            "status": "completed" if task.is_completed else "needsAction",
-        }
-        if task.description is not None:
-            body["notes"] = task.description
-        return body
-
-    def create_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
-        """
-        Create a new task.
-
-        Translates the domain ``Task`` into RFC 3339 format via ``_task_to_dict`` and issues a POST
-        via ``tasks().insert()``.
-        """
+    def create_task(
+        self,
+        title: str,
+        due: datetime | None = None,
+        description: str | None = None,
+    ) -> calendar_client_api.Task:
+        """Create a new task."""
         svc = self._require_tasks_service()
-        body = self._task_to_dict(task)
-        response = (
-            svc.tasks()
-            .insert(
-                tasklist=self.tasklist_id,
-                body=body,
-            )
-            .execute()
-        )
+        body: dict[str, str] = {
+            "title": title,
+            "status": "needsAction",
+        }
+
+        if due is not None:
+            due_dt = due.astimezone(tz=UTC).replace(tzinfo=None) if due.tzinfo else due
+            body["due"] = due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        if description is not None:
+            body["notes"] = description
+
+        response = svc.tasks().insert(tasklist=self.tasklist_id, body=body).execute()
         return GoogleCalendarTask(response)
 
-    def update_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
+    def update_task(
+        self,
+        task_id: str,
+        *,
+        title: str | None = None,
+        due: datetime | None = None,
+        description: str | None = None,
+        is_completed: bool | None = None,
+    ) -> calendar_client_api.Task:
         """
         Update an existing task.
 
-        Injects ``task.id`` back into the request body and issues a PUT via ``tasks().update()``.
+        Uses a read-modify-write pattern to preserve existing properties while
+        patching only the provided fields.
         """
         svc = self._require_tasks_service()
-        body = self._task_to_dict(task)
-        body["id"] = task.id
-        response = (
-            svc.tasks()
-            .update(
-                tasklist=self.tasklist_id,
-                task=task.id,
-                body=body,
-            )
-            .execute()
-        )
+
+        # 1. Fetch existing
+        existing = svc.tasks().get(tasklist=self.tasklist_id, task=task_id).execute()
+
+        # 2. Patch fields
+        if title is not None:
+            existing["title"] = title
+        if due is not None:
+            due_dt = due.astimezone(tz=UTC).replace(tzinfo=None) if due.tzinfo else due
+            existing["due"] = due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        if description is not None:
+            existing["notes"] = description
+        if is_completed is not None:
+            existing["status"] = "completed" if is_completed else "needsAction"
+
+        # 3. Put back
+        response = svc.tasks().update(
+            tasklist=self.tasklist_id,
+            task=task_id,
+            body=existing,
+        ).execute()
         return GoogleCalendarTask(response)
 
     def delete_task(self, task_id: str) -> None:

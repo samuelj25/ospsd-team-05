@@ -200,12 +200,12 @@ class ServiceAdapterClient(ApiClient):
             self._handle_error(e, TaskNotFoundError)
             raise
 
-    def create_task(self, task: Task) -> Task:
+    def create_task(self, title: str, due: datetime, description: str = "") -> Task:
         try:
             payload = TaskCreate(
-                title=task.title,
-                end_time=task.end_time,
-                description=task.description,
+                title=title,
+                end_time=due,
+                description=description,
             )
 
             resp = create_task_tasks_post.sync(client=self._client, body=payload)
@@ -216,21 +216,29 @@ class ServiceAdapterClient(ApiClient):
             self._handle_error(e, CalendarOperationError)
             raise
 
-    def update_task(self, task: Task) -> Task:
+    def update_task(
+        self,
+        task_id: str,
+        title: str,
+        due: datetime,
+        *,
+        is_completed: bool,
+        description: str = "",
+    ) -> Task:
         try:
             payload = TaskUpdate(
-                id=task.id,
-                title=task.title,
-                end_time=task.end_time,
-                is_completed=task.is_completed,
-                description=task.description,
+                id=task_id,
+                title=title,
+                end_time=due,
+                is_completed=is_completed,
+                description=description,
             )
 
             resp = update_task_tasks_task_id_put.sync(
-                client=self._client, task_id=task.id, body=payload
+                client=self._client, task_id=task_id, body=payload
             )
             if not resp or isinstance(resp, HTTPValidationError):
-                raise TaskNotFoundError(f"Task {task.id} not found")
+                raise TaskNotFoundError(f"Task {task_id} not found")
             return AdapterTask(resp)
         except Exception as e:
             self._handle_error(e, TaskNotFoundError)

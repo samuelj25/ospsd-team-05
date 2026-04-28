@@ -88,8 +88,6 @@ def sync_detailed(
 
      Return all tasks between ``start_time`` and ``end_time``.
 
-    TODO: Implement using ``client.get_tasks(start_time, end_time)``.
-
     Args:
         start_time (datetime.datetime):
         end_time (datetime.datetime):
@@ -127,8 +125,6 @@ def sync(
 
      Return all tasks between ``start_time`` and ``end_time``.
 
-    TODO: Implement using ``client.get_tasks(start_time, end_time)``.
-
     Args:
         start_time (datetime.datetime):
         end_time (datetime.datetime):
@@ -160,8 +156,6 @@ async def asyncio_detailed(
     """List tasks in a time range
 
      Return all tasks between ``start_time`` and ``end_time``.
-
-    TODO: Implement using ``client.get_tasks(start_time, end_time)``.
 
     Args:
         start_time (datetime.datetime):
@@ -197,8 +191,6 @@ async def asyncio(
     """List tasks in a time range
 
      Return all tasks between ``start_time`` and ``end_time``.
-
-    TODO: Implement using ``client.get_tasks(start_time, end_time)``.
 
     Args:
         start_time (datetime.datetime):

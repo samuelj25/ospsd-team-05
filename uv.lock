@@ -133,6 +133,7 @@ dependencies = [
     { name = "fastapi" },
     { name = "gemini-ai-client-impl" },
     { name = "google-calendar-client-impl" },
+    { name = "opentelemetry-exporter-gcp-monitoring" },
     { name = "opentelemetry-exporter-gcp-trace" },
     { name = "opentelemetry-instrumentation-fastapi" },
     { name = "opentelemetry-sdk" },
@@ -156,6 +157,7 @@ requires-dist = [
     { name = "gemini-ai-client-impl", editable = "components/gemini_ai_client_impl" },
     { name = "google-calendar-client-impl", editable = "components/google_calendar_client_impl" },
     { name = "httpx", marker = "extra == 'test'", specifier = ">=0.27.0" },
+    { name = "opentelemetry-exporter-gcp-monitoring", specifier = ">=1.11.0a0" },
     { name = "opentelemetry-exporter-gcp-trace", specifier = ">=1.6" },
     { name = "opentelemetry-instrumentation-fastapi", specifier = ">=0.45b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.24" },
@@ -665,6 +667,23 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'test'", specifier = ">=3.10.0" },
 ]
 provides-extras = ["test"]
+
+[[package]]
+name = "google-cloud-monitoring"
+version = "2.30.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-api-core", version = "2.25.2", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version >= '3.14'" },
+    { name = "google-api-core", version = "2.29.0", source = { registry = "https://pypi.org/simple" }, extra = ["grpc"], marker = "python_full_version < '3.14'" },
+    { name = "google-auth" },
+    { name = "grpcio" },
+    { name = "proto-plus" },
+    { name = "protobuf" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/eb/3f/7bc306ebb006114f58fb9143aec91e1b014a11577350d8bbd6bbc38389f9/google_cloud_monitoring-2.30.0.tar.gz", hash = "sha256:a9530aa9aa246c490810dfa7be32d67e8340d19108acc99cbc02d1ed494fba76", size = 407108, upload-time = "2026-03-26T22:17:10.365Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ad/c8/666c21c470b9d6fd62ac9ee74dc265419975228f9b16f8ad72ec22e8d98b/google_cloud_monitoring-2.30.0-py3-none-any.whl", hash = "sha256:2729f3b88a4798b7757b1d9d31b6cb562bb3544e8173765e4e5cd44d8685b1ed", size = 391367, upload-time = "2026-03-26T22:15:04.088Z" },
+]
 
 [[package]]
 name = "google-cloud-trace"
@@ -1288,6 +1307,21 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/47/8e/3778a7e87801d994869a9396b9fc2a289e5f9be91ff54a27d41eace494b0/opentelemetry_api-1.41.0.tar.gz", hash = "sha256:9421d911326ec12dee8bc933f7839090cad7a3f13fcfb0f9e82f8174dc003c09", size = 71416, upload-time = "2026-04-09T14:38:34.544Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/58/ee/99ab786653b3bda9c37ade7e24a7b607a1b1f696063172768417539d876d/opentelemetry_api-1.41.0-py3-none-any.whl", hash = "sha256:0e77c806e6a89c9e4f8d372034622f3e1418a11bdbe1c80a50b3d3397ad0fa4f", size = 69007, upload-time = "2026-04-09T14:38:11.833Z" },
+]
+
+[[package]]
+name = "opentelemetry-exporter-gcp-monitoring"
+version = "1.11.0a0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "google-cloud-monitoring" },
+    { name = "opentelemetry-api" },
+    { name = "opentelemetry-resourcedetector-gcp" },
+    { name = "opentelemetry-sdk" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/3f/48/d1c7d2380bb1754d1eb6a011a2e0de08c6868cb6c0f34bcda0444fa0d614/opentelemetry_exporter_gcp_monitoring-1.11.0a0.tar.gz", hash = "sha256:386276eddbbd978a6f30fafd3397975beeb02a1302bdad554185242a8e2c343c", size = 20828, upload-time = "2025-11-04T19:32:14.522Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8c/8c/03a6e73e270a9c890dbd6cc1c47c83d86b8a8a974a9168d92e043c6277cc/opentelemetry_exporter_gcp_monitoring-1.11.0a0-py3-none-any.whl", hash = "sha256:b6740cba61b2f9555274829fe87a58447b64d0378f1067a4faebb4f5b364ca22", size = 13611, upload-time = "2025-11-04T19:32:08.212Z" },
 ]
 
 [[package]]

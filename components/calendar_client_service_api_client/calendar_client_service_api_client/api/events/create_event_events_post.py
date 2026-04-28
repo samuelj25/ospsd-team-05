@@ -76,8 +76,6 @@ def sync_detailed(
 
      Create a new event from ``payload``.
 
-    TODO: Build an Event object from payload fields and call ``client.create_event(event)``.
-
     Args:
         session_id (None | str | Unset):
         body (EventCreate): Payload for creating a new calendar event.
@@ -112,8 +110,6 @@ def sync(
 
      Create a new event from ``payload``.
 
-    TODO: Build an Event object from payload fields and call ``client.create_event(event)``.
-
     Args:
         session_id (None | str | Unset):
         body (EventCreate): Payload for creating a new calendar event.
@@ -142,8 +138,6 @@ async def asyncio_detailed(
     """Create an event
 
      Create a new event from ``payload``.
-
-    TODO: Build an Event object from payload fields and call ``client.create_event(event)``.
 
     Args:
         session_id (None | str | Unset):
@@ -176,8 +170,6 @@ async def asyncio(
     """Create an event
 
      Create a new event from ``payload``.
-
-    TODO: Build an Event object from payload fields and call ``client.create_event(event)``.
 
     Args:
         session_id (None | str | Unset):

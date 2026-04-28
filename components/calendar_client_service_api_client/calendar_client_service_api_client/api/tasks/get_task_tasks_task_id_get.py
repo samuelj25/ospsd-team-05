@@ -72,8 +72,6 @@ def sync_detailed(
 
      Return the task with the given ``task_id``.
 
-    TODO: Implement using ``client.get_task(task_id)``.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -108,8 +106,6 @@ def sync(
 
      Return the task with the given ``task_id``.
 
-    TODO: Implement using ``client.get_task(task_id)``.
-
     Args:
         task_id (str):
         session_id (None | str | Unset):
@@ -138,8 +134,6 @@ async def asyncio_detailed(
     """Get a single task
 
      Return the task with the given ``task_id``.
-
-    TODO: Implement using ``client.get_task(task_id)``.
 
     Args:
         task_id (str):
@@ -172,8 +166,6 @@ async def asyncio(
     """Get a single task
 
      Return the task with the given ``task_id``.
-
-    TODO: Implement using ``client.get_task(task_id)``.
 
     Args:
         task_id (str):

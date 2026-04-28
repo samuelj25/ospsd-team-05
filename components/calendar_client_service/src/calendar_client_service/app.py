@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
 import time
-from typing import TYPE_CHECKING, Any
+from http import HTTPStatus
+from typing import TYPE_CHECKING
 
 from calendar_client_api.exceptions import TaskNotFoundError
 from fastapi import FastAPI, Request
@@ -21,128 +21,104 @@ from calendar_client_service.slack_routes import router as slack_router
 from calendar_client_service.task_routes import router as task_router
 
 if TYPE_CHECKING:
+    from opentelemetry.metrics import Counter, Histogram
     from starlette.responses import Response
+
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.cloud_monitoring import CloudMonitoringMetricsExporter
+from opentelemetry.exporter.cloud_trace import CloudTraceSpanExporter
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.sdk.metrics.export import (
+    ConsoleMetricExporter,
+    PeriodicExportingMetricReader,
+)
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 
 logger = logging.getLogger(__name__)
 
-
 # ---------------------------------------------------------------------------
-# Telemetry: in-memory metrics store
-# ---------------------------------------------------------------------------
-
-
-class _MetricsStore:
-    """Thread-safe counters for request latency, success, and failure totals."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._success_total: int = 0
-        self._failure_total: int = 0
-        self._latency_sum_ms: float = 0.0
-        self._request_count: int = 0
-
-    def record(self, status_code: int, latency_ms: float) -> None:
-        """Record a single request outcome into the running totals."""
-        with self._lock:
-            self._request_count += 1
-            self._latency_sum_ms += latency_ms
-            if status_code < 400:  # noqa: PLR2004
-                self._success_total += 1
-            else:
-                self._failure_total += 1
-
-    def snapshot(self) -> dict[str, Any]:
-        """Return a point-in-time copy of all counters."""
-        with self._lock:
-            avg_ms = (
-                self._latency_sum_ms / self._request_count
-                if self._request_count > 0
-                else 0.0
-            )
-            return {
-                "request_success_total": self._success_total,
-                "request_failure_total": self._failure_total,
-                "request_count": self._request_count,
-                "request_latency_avg_ms": round(avg_ms, 2),
-            }
-
-
-_metrics = _MetricsStore()
-
-
-# ---------------------------------------------------------------------------
-# Telemetry: latency middleware
+# Telemetry: Global Instruments
 # ---------------------------------------------------------------------------
 
+_meter = metrics.get_meter("calendar_client_service")
+
+_request_counter: Counter = _meter.create_counter(
+    name="custom.googleapis.com/http/request_count",
+    description="Total number of HTTP requests",
+    unit="1",
+)
+
+_latency_histogram: Histogram = _meter.create_histogram(
+    name="custom.googleapis.com/http/request_latency",
+    description="Latency of HTTP requests",
+    unit="ms",
+)
+
+# ---------------------------------------------------------------------------
+# Telemetry: Latency Middleware
+# ---------------------------------------------------------------------------
 
 class TelemetryMiddleware(BaseHTTPMiddleware):
-    """Records per-request wall-clock latency and updates the metrics store."""
+    """Records per-request wall-clock latency and pushes to OpenTelemetry."""
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        """Time the request, update counters, and forward the response."""
+        """Time the request, update OTel instruments, and forward the response."""
         start = time.perf_counter()
         response = await call_next(request)
         latency_ms = (time.perf_counter() - start) * 1000.0
-        _metrics.record(response.status_code, latency_ms)
+
+        is_success = response.status_code < HTTPStatus.BAD_REQUEST
+        status_category = "success" if is_success else "failure"
+
+        attributes: dict[str, str] = {
+            "status_code": str(response.status_code),
+            "status_category": status_category,
+            "route": request.url.path,
+        }
+
+        _request_counter.add(1, attributes)
+        _latency_histogram.record(latency_ms, attributes)
+
         response.headers["X-Response-Time-Ms"] = f"{latency_ms:.2f}"
         return response
 
 
 # ---------------------------------------------------------------------------
-# Telemetry: OpenTelemetry tracing
+# Telemetry: OpenTelemetry Setup
 # ---------------------------------------------------------------------------
 
-
-def _configure_tracing(application: FastAPI) -> None:
-    """
-    Initialise OpenTelemetry tracing and instrument the FastAPI app.
-
-    Uses ``CloudTraceSpanExporter`` when ``GOOGLE_CLOUD_PROJECT`` is set;
-    falls back to a ``ConsoleSpanExporter`` for local / CI environments.
-    Silently disables telemetry if OTel packages are not installed.
-
-    Args:
-        application: The FastAPI instance to instrument.
-
-    """
-    try:
-        from opentelemetry import trace  # noqa: PLC0415
-        from opentelemetry.instrumentation.fastapi import (  # noqa: PLC0415
-            FastAPIInstrumentor,
-        )
-        from opentelemetry.sdk.trace import (  # noqa: PLC0415
-            TracerProvider,
-        )
-        from opentelemetry.sdk.trace.export import (  # noqa: PLC0415
-            BatchSpanProcessor,
-            ConsoleSpanExporter,
-        )
-    except ImportError:
-        logger.warning("OTel: opentelemetry packages not installed — tracing disabled.")
-        return
-
-    provider = TracerProvider()
+def _configure_telemetry(application: FastAPI) -> None:
+    """Initialise OpenTelemetry tracing and metrics."""
+    tracer_provider = TracerProvider()
     gcp_project = os.environ.get("GOOGLE_CLOUD_PROJECT")
 
-    exporter: object  # typed as object so CloudTrace/Console are both assignable
-    if gcp_project:
-        try:
-            from opentelemetry.exporter.cloud_trace import (  # noqa: PLC0415
-                CloudTraceSpanExporter,
-            )
-            exporter = CloudTraceSpanExporter(project_id=gcp_project)  # type: ignore[no-untyped-call]
-            logger.info("OTel: Cloud Trace exporter active (project=%s).", gcp_project)
-        except Exception:  # noqa: BLE001
-            logger.warning("OTel: Cloud Trace unavailable — falling back to console exporter.")
-            exporter = ConsoleSpanExporter()
-    else:
-        exporter = ConsoleSpanExporter()
-        logger.info("OTel: console span exporter active (set GOOGLE_CLOUD_PROJECT for GCP).")
+    trace_exporter: ConsoleSpanExporter | CloudTraceSpanExporter
+    metrics_reader: PeriodicExportingMetricReader
 
-    provider.add_span_processor(BatchSpanProcessor(exporter))
-    trace.set_tracer_provider(provider)
+    if gcp_project:
+        trace_exporter = CloudTraceSpanExporter(project_id=gcp_project)  # type: ignore[no-untyped-call]
+        metrics_exporter = CloudMonitoringMetricsExporter(project_id=gcp_project)
+        metrics_reader = PeriodicExportingMetricReader(metrics_exporter)
+
+        logger.info("OTel: GCP Trace & Monitoring active (project=%s).", gcp_project)
+    else:
+        trace_exporter = ConsoleSpanExporter()
+        metrics_reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
+        logger.info("OTel: console exporters active (set GOOGLE_CLOUD_PROJECT for GCP).")
+
+    # Wire up tracing
+    tracer_provider.add_span_processor(BatchSpanProcessor(trace_exporter))
+    trace.set_tracer_provider(tracer_provider)
+
+    # Wire up metrics
+    meter_provider = MeterProvider(metric_readers=[metrics_reader])
+    metrics.set_meter_provider(meter_provider)
+
+    # Instrument FastAPI
     FastAPIInstrumentor.instrument_app(application)
     logger.info("OTel: FastAPI instrumented successfully.")
 
@@ -189,15 +165,6 @@ def create_app() -> FastAPI:
         return HealthResponse(status="ok")
 
     # ------------------------------------------------------------------
-    # Metrics
-    # ------------------------------------------------------------------
-
-    @application.get("/metrics", tags=["observability"], summary="Service metrics")
-    def metrics() -> dict[str, Any]:
-        """Return request success/failure counters and average latency (ms)."""
-        return _metrics.snapshot()
-
-    # ------------------------------------------------------------------
     # Routers
     # ------------------------------------------------------------------
 
@@ -232,7 +199,7 @@ def create_app() -> FastAPI:
     # OpenTelemetry tracing (after routes are registered)
     # ------------------------------------------------------------------
 
-    _configure_tracing(application)
+    _configure_telemetry(application)
 
     return application
 

@@ -21,13 +21,13 @@ class Task(ABC):
 
     @property
     @abstractmethod
-    def start_time(self) -> datetime:
+    def start_time(self) -> datetime | None:
         """Return time of the task."""
         raise NotImplementedError
 
     @property
     @abstractmethod
-    def end_time(self) -> datetime:
+    def end_time(self) -> datetime | None:
         """Return end time of the task."""
         raise NotImplementedError
 
