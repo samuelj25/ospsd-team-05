@@ -48,12 +48,25 @@ class Client(CalendarClient):
         raise NotImplementedError
 
     @abstractmethod
-    def create_task(self, task: Task) -> Task:
+    def create_task(
+        self,
+        title: str,
+        due: datetime | None = None,
+        description: str | None = None,
+    ) -> Task:
         """Create a new task."""
         raise NotImplementedError
 
     @abstractmethod
-    def update_task(self, task: Task) -> Task:
+    def update_task(
+        self,
+        task_id: str,
+        *,
+        title: str | None = None,
+        due: datetime | None = None,
+        description: str | None = None,
+        is_completed: bool | None = None,
+    ) -> Task:
         """Update an existing task."""
         raise NotImplementedError
 

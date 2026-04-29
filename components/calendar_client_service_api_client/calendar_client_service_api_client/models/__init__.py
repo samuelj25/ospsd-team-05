@@ -6,6 +6,9 @@ from .event_response import EventResponse
 from .event_update import EventUpdate
 from .health_response import HealthResponse
 from .http_validation_error import HTTPValidationError
+from .slack_events_slack_events_post_response_slack_events_slack_events_post import (
+    SlackEventsSlackEventsPostResponseSlackEventsSlackEventsPost,
+)
 from .task_create import TaskCreate
 from .task_response import TaskResponse
 from .task_update import TaskUpdate
@@ -19,6 +22,7 @@ __all__ = (
     "EventUpdate",
     "HealthResponse",
     "HTTPValidationError",
+    "SlackEventsSlackEventsPostResponseSlackEventsSlackEventsPost",
     "TaskCreate",
     "TaskResponse",
     "TaskUpdate",

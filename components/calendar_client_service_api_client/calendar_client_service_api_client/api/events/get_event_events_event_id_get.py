@@ -72,8 +72,6 @@ def sync_detailed(
 
      Return the event with the given ``event_id``.
 
-    TODO: Implement using ``client.get_event(event_id)``.
-
     Args:
         event_id (str):
         session_id (None | str | Unset):
@@ -108,8 +106,6 @@ def sync(
 
      Return the event with the given ``event_id``.
 
-    TODO: Implement using ``client.get_event(event_id)``.
-
     Args:
         event_id (str):
         session_id (None | str | Unset):
@@ -138,8 +134,6 @@ async def asyncio_detailed(
     """Get a single event
 
      Return the event with the given ``event_id``.
-
-    TODO: Implement using ``client.get_event(event_id)``.
 
     Args:
         event_id (str):
@@ -172,8 +166,6 @@ async def asyncio(
     """Get a single event
 
      Return the event with the given ``event_id``.
-
-    TODO: Implement using ``client.get_event(event_id)``.
 
     Args:
         event_id (str):

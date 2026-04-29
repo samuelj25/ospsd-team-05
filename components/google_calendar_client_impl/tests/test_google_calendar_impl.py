@@ -297,15 +297,15 @@ def test_google_client_create_task_with_mock() -> None:
         }
 
         end = datetime(2026, 3, 1, tzinfo=UTC)
-        input_task = MockTask("ignore", "New Task", end, is_completed=True, desc="Testing creation")
 
-        new_task = client.create_task(input_task)
+        # Pass direct arguments instead of MockTask
+        new_task = client.create_task(title="New Task", due=end, description="Testing creation")
+
         assert new_task.id == "new_task"
         assert new_task.is_completed
         mock_tasks.insert.assert_called_once()
         _, kwargs = mock_tasks.insert.call_args
         assert kwargs["body"]["title"] == "New Task"
-        assert kwargs["body"]["status"] == "completed"
 
 
 def test_google_client_update_task_with_mock() -> None:
@@ -325,9 +325,12 @@ def test_google_client_update_task_with_mock() -> None:
         }
 
         end = datetime(2026, 3, 2, tzinfo=UTC)
-        input_task = MockTask("update_task", "Updated Task", end, is_completed=False)
 
-        updated_task = client.update_task(input_task)
+        # Pass direct arguments instead of MockTask
+        updated_task = client.update_task(
+            task_id="update_task", title="Updated Task", due=end, is_completed=False
+        )
+
         assert updated_task.title == "Updated Task"
         mock_tasks.update.assert_called_once()
         _, kwargs = mock_tasks.update.call_args

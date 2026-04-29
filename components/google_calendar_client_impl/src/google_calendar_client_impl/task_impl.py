@@ -11,13 +11,7 @@ class GoogleCalendarTask(task.Task):
     """Concrete implementation of the Task abstraction for Google Calendar tasks."""
 
     def __init__(self, raw_data: str | dict[str, Any]) -> None:
-        """
-        Initialize a GoogleCalendarTask instance.
-
-        Args:
-            raw_data: Raw task data as a JSON string or dictionary.
-
-        """
+        """Initialize a GoogleCalendarTask instance."""
         parsed = self._parse_raw_data(raw_data)
 
         task_id_error = "Task data must contain a valid 'id' field."
@@ -30,23 +24,15 @@ class GoogleCalendarTask(task.Task):
         if not isinstance(title, str):
             raise TypeError(title_error)
 
-        due_error = "Task data must contain a valid 'due' field."
-        due = parsed.get("due")
-        if not isinstance(due, str):
-            raise TypeError(due_error)
-
-        # Google Tasks API uses "due" as ISO timestamp
-        start_time_error = "Task data must contain a valid time field."
-        start_time = parsed.get("updated", due)  # fallback if no explicit start
-        if not isinstance(start_time, str):
-            raise TypeError(start_time_error)
-
         self._id: str = task_id
         self._title: str = title
         self._description: str | None = parsed.get("notes")
 
-        self._start_time: datetime = self._parse_datetime(start_time)
-        self._end_time: datetime = self._parse_datetime(due)
+        due = parsed.get("due")
+        start_time = parsed.get("updated", due)
+
+        self._start_time: datetime | None = self._parse_datetime(start_time) if start_time else None
+        self._end_time: datetime | None = self._parse_datetime(due) if due else None
 
         status = parsed.get("status", "needsAction")
         self._is_completed: bool = status == "completed"
@@ -84,12 +70,12 @@ class GoogleCalendarTask(task.Task):
         return self._title
 
     @property
-    def start_time(self) -> datetime:
+    def start_time(self) -> datetime | None:
         """Get the task start time."""
         return self._start_time
 
     @property
-    def end_time(self) -> datetime:
+    def end_time(self) -> datetime | None:
         """Get the task end time."""
         return self._end_time
 
