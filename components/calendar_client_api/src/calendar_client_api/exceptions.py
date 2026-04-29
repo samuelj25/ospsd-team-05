@@ -1,17 +1,24 @@
-"""Exceptions for calendar_client_api."""
+"""
+Exceptions for calendar_client_api.
 
-class CalendarError(Exception):
-    """Base exception for calendar_client_api errors."""
+The three shared base exceptions are re-exported from ``ospsd_calendar_api``
+so that all callers importing from this package continue to work without
+changes.  ``TaskNotFoundError`` is a Team-05 private extension not present in
+the common API.
+"""
 
-
-class EventNotFoundError(CalendarError):
-    """Raised when an event is not found."""
+# Re-export the shared exceptions from the common cross-team API contract.
+from ospsd_calendar_api.exceptions import (
+    CalendarError,
+    CalendarOperationError,  # noqa: F401
+    EventNotFoundError,  # noqa: F401
+)
 
 
 class TaskNotFoundError(CalendarError):
-    """Raised when a task is not found."""
+    """
+    Raised when a requested task does not exist.
 
-
-class CalendarOperationError(CalendarError):
-    """Raised when a calendar operation fails."""
-
+    This exception is a Team-05 private extension — Google Tasks is not part
+    of the shared ``ospsd_calendar_api`` contract.
+    """

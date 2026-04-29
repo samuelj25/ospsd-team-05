@@ -3,27 +3,19 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from google_calendar_client_impl.event_impl import GoogleCalendarEvent
-from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
-from googleapiclient.errors import HttpError
+from calendar_client_adapter.adapter import ServiceAdapterClient
+from calendar_client_api import EventNotFoundError
 
 
 @pytest.mark.e2e
-def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
+def test_event_lifecycle(live_client: ServiceAdapterClient) -> None:
     """Create an event, verify it exists, update it, verify the modification, and delete it."""
     now = datetime.now(tz=UTC)
     start = (now + timedelta(hours=1)).replace(microsecond=0)
     end = (start + timedelta(hours=1)).replace(microsecond=0)
 
-    event_data: dict[str, str | dict[str, str]] = {
-        "id": "dummy",
-        "summary": "E2E Lifecycle Event Original",
-        "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end.isoformat(), "timeZone": "UTC"}
-    }
-
     # 1. Create Event
-    created = live_client.create_event(GoogleCalendarEvent(event_data))
+    created = live_client.create_event(title="E2E Lifecycle Event Original", start=start, end=end)
     assert created.id is not None
     assert created.title == "E2E Lifecycle Event Original"
 
@@ -33,13 +25,12 @@ def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
         assert fetched.title == "E2E Lifecycle Event Original"
 
         # 3. Update it
-        update_data: dict[str, str | dict[str, str]] = {
-            "id": created.id,
-            "summary": "E2E Lifecycle Event Updated",
-            "start": {"dateTime": start.isoformat(), "timeZone": "UTC"},
-            "end": {"dateTime": end.isoformat(), "timeZone": "UTC"}
-        }
-        updated = live_client.update_event(GoogleCalendarEvent(update_data))
+        updated = live_client.update_event(
+            created.id,
+            title="E2E Lifecycle Event Updated",
+            start_time=start,
+            end_time=end,
+        )
         assert updated.title == "E2E Lifecycle Event Updated"
 
         # 4. Verify modification via Get
@@ -50,24 +41,13 @@ def test_event_lifecycle(live_client: GoogleCalendarClient) -> None:
         # 5. Delete it
         live_client.delete_event(created.id)
 
-        # Verify it is deleted (404 or cancelled)
-        error_caught = None
-        try:
+        # Verify it is deleted — the adapter raises EventNotFoundError on 404.
+        with pytest.raises(EventNotFoundError):
             live_client.get_event(created.id)
-        except HttpError as exc_info:
-            error_caught = exc_info
-
-        if error_caught:
-            assert getattr(error_caught, "status_code", 404) in (404, 400, 410)
-        else:
-            raw_ev = live_client._require_calendar_service().events().get(  # noqa: SLF001 # Needed to assert raw Google backend soft-deleted status
-                calendarId=live_client.calendar_id, eventId=created.id
-            ).execute()
-            assert raw_ev.get("status") == "cancelled"
 
 
 @pytest.mark.e2e
-def test_list_events_lifecycle(live_client: GoogleCalendarClient) -> None:
+def test_list_events_lifecycle(live_client: ServiceAdapterClient) -> None:
     """Create a couple events, verify they show up in get_events() with date ranges."""
     now = datetime.now(tz=UTC)
     start1 = (now + timedelta(hours=1)).replace(microsecond=0)
@@ -76,33 +56,19 @@ def test_list_events_lifecycle(live_client: GoogleCalendarClient) -> None:
     start2 = (now + timedelta(hours=3)).replace(microsecond=0)
     end2 = (start2 + timedelta(hours=1)).replace(microsecond=0)
 
-    event_data_1: dict[str, str | dict[str, str]] = {
-        "id": "dummy",
-        "summary": "E2E List Event 1",
-        "start": {"dateTime": start1.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end1.isoformat(), "timeZone": "UTC"}
-    }
-
-    event_data_2: dict[str, str | dict[str, str]] = {
-        "id": "dummy",
-        "summary": "E2E List Event 2",
-        "start": {"dateTime": start2.isoformat(), "timeZone": "UTC"},
-        "end": {"dateTime": end2.isoformat(), "timeZone": "UTC"}
-    }
-
-    ids_to_clean = []
+    ids_to_clean: list[str] = []
 
     try:
-        ev1 = live_client.create_event(GoogleCalendarEvent(event_data_1))
+        ev1 = live_client.create_event(title="E2E List Event 1", start=start1, end=end1)
         ids_to_clean.append(ev1.id)
 
-        ev2 = live_client.create_event(GoogleCalendarEvent(event_data_2))
+        ev2 = live_client.create_event(title="E2E List Event 2", start=start2, end=end2)
         ids_to_clean.append(ev2.id)
 
         # Fetch events in range
-        events_list = list(live_client.get_events(now, now + timedelta(days=1)))
+        events_list = live_client.list_events(now, now + timedelta(days=1))
 
-        # Verify our created events are natively returned in the list
+        # Verify our created events are returned in the list
         found_ids = [e.id for e in events_list]
         assert ev1.id in found_ids
         assert ev2.id in found_ids

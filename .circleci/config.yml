@@ -1,9 +1,23 @@
 version: 2.1
 
+commands:
+  setup_gcp_credentials:
+    steps:
+      - run:
+          name: "Setup GCP Credentials"
+          command: |
+            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
+                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
+                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+            else
+                echo "Error: Base64 GCP variables are not set. Failing Step."
+                exit 1
+            fi
+
 jobs:
   build:
     docker:
-      - image: cimg/python:3.11
+      - image: cimg/python:3.12
     steps:
       - checkout
 
@@ -19,7 +33,7 @@ jobs:
           name: "Create venv & install dependencies via uv sync"
           command: |
             source $BASH_ENV
-            uv venv --python 3.11
+            uv venv --python 3.12
             source .venv/bin/activate
             uv sync --all-packages
 
@@ -46,7 +60,7 @@ jobs:
 
   lint:
     docker:
-      - image: cimg/python:3.11
+      - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
@@ -58,7 +72,7 @@ jobs:
 
   typecheck:
     docker:
-      - image: cimg/python:3.11
+      - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
@@ -70,7 +84,7 @@ jobs:
 
   unit_tests:
     docker:
-      - image: cimg/python:3.11
+      - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
@@ -84,7 +98,7 @@ jobs:
           name: "Run unit tests"
           command: |
             source .venv/bin/activate
-            uv run pytest components/google_calendar_client_impl/tests/ --junitxml=test-results/unit/results.xml
+            uv run pytest components/ --junitxml=test-results/unit/results.xml
 
       - store_test_results:
           path: test-results/unit
@@ -93,22 +107,17 @@ jobs:
           path: test-results/unit
           destination: test-results/unit
 
+      - store_artifacts:
+          path: coverage-reports
+          destination: coverage-reports
+
   integration_tests:
     docker:
-      - image: cimg/python:3.11
+      - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
-      - run:
-          name: "Setup GCP Credentials"
-          command: |
-            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
-                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
-                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
-            else
-                echo "Error: Base64 GCP variables are not set. Failing Step."
-                exit 1
-            fi
+      - setup_gcp_credentials
       - run:
           name: "Create results directories"
           command: |
@@ -130,20 +139,11 @@ jobs:
 
   e2e_tests:
     docker:
-      - image: cimg/python:3.11
+      - image: cimg/python:3.12
     steps:
       - attach_workspace:
           at: .
-      - run:
-          name: "Setup GCP Credentials"
-          command: |
-            if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
-                echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
-                echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
-            else
-                echo "Error: Base64 GCP variables are not set. Failing Step."
-                exit 1
-            fi
+      - setup_gcp_credentials
       - run:
           name: "Create results directories"
           command: |
@@ -163,6 +163,61 @@ jobs:
           path: test-results/e2e
           destination: test-results/e2e
 
+  docker_build_push:
+    docker:
+      - image: cimg/base:current
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: default
+      - run:
+          name: "Authenticate to Google Artifact Registry"
+          command: |
+            echo "$GCP_SA_KEY_B64" | base64 --decode > /tmp/gcp-key.json
+            cat /tmp/gcp-key.json | docker login -u _json_key --password-stdin \
+              https://${GCP_REGION}-docker.pkg.dev
+
+      - run:
+          name: "Build and push Docker image"
+          command: |
+            IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
+            docker build -t "$IMAGE_TAG" .
+            docker push "$IMAGE_TAG"
+            # Also tag as :latest for convenience
+            docker tag "$IMAGE_TAG" \
+              "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:latest"
+            docker push \
+              "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:latest"
+            # Export the image URL for downstream jobs
+            echo "export IMAGE_URL=$IMAGE_TAG" >> $BASH_ENV
+
+  deploy_to_cloud_run:
+    docker:
+      - image: hashicorp/terraform:1.8
+    steps:
+      - checkout
+      - run:
+          name: "Deploy to Cloud Run"
+          command: |
+            export GOOGLE_CREDENTIALS=$(printf '%s' "$GCP_SA_KEY_B64" | tr -d ' \n\r' | base64 -d)
+
+            # Verify credentials loaded correctly
+            echo "$GOOGLE_CREDENTIALS" | head -c 30
+
+            # Write tfvars — no secret values, they live in GCP Secret Manager
+            IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
+            cat > infra/terraform.tfvars \<<EOF
+            project_id     = "${GCP_PROJECT_ID}"
+            region         = "${GCP_REGION}"
+            service_name   = "calendar-client-service"
+            image_url      = "${IMAGE_TAG}"
+            enable_service = true
+            EOF
+
+            terraform -chdir=infra init
+            terraform -chdir=infra apply -auto-approve
+            terraform -chdir=infra output service_url
+
 workflows:
   build_and_test:
     jobs:
@@ -177,3 +232,13 @@ workflows:
           requires: [unit_tests]
       - e2e_tests:
           requires: [integration_tests]
+      - docker_build_push:
+          requires: [e2e_tests]
+          filters:
+            branches:
+              only: hw3
+      - deploy_to_cloud_run:
+          requires: [docker_build_push]
+          filters:
+            branches:
+              only: hw3

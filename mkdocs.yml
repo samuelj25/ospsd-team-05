@@ -6,12 +6,19 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          paths: [components/calendar_client_api/src, components/google_calendar_client_impl/src]
+          paths:
+            - components/calendar_client_api/src
+            - components/google_calendar_client_impl/src
+            - components/calendar_client_service/src
+            - components/calendar_client_adapter/src
 
 nav:
   - Home: index.md
   - Components:
     - Calendar Client API: calendar_client_api.md
-    - Google Calendar Client: google_calendar_client_impl.md
+    - Google Calendar Implementation: google_calendar_client_impl.md
     - Event Implementation: event_impl.md
     - Task Implementation: task_impl.md
+    - Calendar Client Service: calendar_client_service.md
+    - Service API Client: calendar_client_service_api_client.md
+    - Calendar Client Adapter: calendar_client_adapter.md

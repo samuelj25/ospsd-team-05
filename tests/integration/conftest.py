@@ -1,4 +1,5 @@
 """Pytest config for integration tests."""
+
 import os
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClien
 
 
 @pytest.fixture(scope="session")
-def integration_live_client()-> GoogleCalendarClient:
+def integration_live_client() -> GoogleCalendarClient:
     """
     Create a real connected GoogleCalendarClient using live APIs.
 

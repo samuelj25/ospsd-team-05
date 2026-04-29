@@ -1,152 +1,356 @@
-# Design Document
+# DESIGN.md — Calendar Client Service (HW2)
 
-## Overview
+## Architecture Overview
 
-This document describes the architectural design of the Google Calendar Client project. The system provides a modular, type-safe Python library for interacting with Google Calendar and Google Tasks through a clean abstraction layer.
+### Components
 
-## Goals
+This project transforms the HW1 library-based Google Calendar client into a service-oriented architecture made up of five distinct components:
 
-- Provide a simple, minimal interface for calendar and task operations that hides provider-specific complexity.
-- Enable swapping the underlying provider (Google Calendar) without changing consumer code.
-- Ensure testability at every layer through dependency injection and mockable abstractions.
-- Enforce strict type safety and code quality through automated tooling.
+**1. `calendar_client_api` (The Interface Contract)**
+The abstract base classes (`Client`, `Event`, `Task`) and exception types (`EventNotFoundError`, `TaskNotFoundError`, `CalendarOperationError`) that define the shared contract all implementations must satisfy. Nothing in this layer knows about Google, HTTP, or any concrete technology — it is purely definitional.
 
-## Architectural Overview
+**2. `google_calendar_client_impl` (The Original Library Implementation)**
+The concrete `GoogleCalendarClient` that implements `Client` by talking directly to the Google Calendar and Tasks REST APIs via OAuth 2.0. This component is unchanged from HW1 and is now consumed exclusively by the service layer — users never import it directly.
+
+**3. `calendar_client_service` (The FastAPI Service)**
+A FastAPI application that wraps `google_calendar_client_impl` and exposes its functionality over HTTP. It handles OAuth session management via `WebOAuthManager`, provides REST endpoints for events and tasks, and translates Python exceptions into appropriate HTTP status codes. It is the only component that ever imports or instantiates `GoogleCalendarClient`.
+
+**4. `calendar_client_service_api_client` (The Auto-Generated HTTP Client)**
+A Python client library auto-generated from the service's OpenAPI spec using `openapi-python-client`. It provides typed Python functions and models for every endpoint in the service. Consumers use this to talk to the service over HTTP without writing raw `httpx` / `requests` calls themselves.
+
+**5. `calendar_client_adapter` (The Adapter / Shim)**
+A thin adapter layer (`ServiceAdapterClient`) that implements the `calendar_client_api.Client` interface but, instead of calling Google APIs directly, delegates every method call to the auto-generated HTTP client. This is the "shim" that makes service usage look identical to library usage from the caller's perspective.
+
+---
+
+### Component Interaction Diagram
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Consumer Code                     │
-│         (imports calendar_client_api only)          │
-└──────────────────────┬──────────────────────────────┘
-                       │ get_client()
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│              calendar_client_api                    │
-│                                                     │
-│  Client (ABC)    Event (ABC)    Task (ABC)          │
-│  get_client()    Exceptions                         │
-└──────────────────────┬──────────────────────────────┘
-                       │ dependency injection
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│          google_calendar_client_impl                │
-│                                                     │
-│  GoogleCalendarClient    GoogleCalendarEvent        │
-│  GoogleCalendarTask      auth (OAuth 2.0)           │
-│  register()                                         │
-└──────────────────────┬──────────────────────────────┘
-                       │ HTTP / REST
-                       ▼
-┌─────────────────────────────────────────────────────┐
-│          Google Calendar API / Tasks API            │
-└─────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                              User Code                              │
+│              client = get_client()                                  │
+│              client.get_event("abc")                                │
+└─────────────────────────────┬──────────────────────────────────────────────┘
+                            │ calendar_client_api.Client interface
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   calendar_client_adapter                            │
+│              ServiceAdapterClient (implements Client)                │
+│  Translates Client method calls → typed HTTP client calls            │
+└─────────────────────────────┬───────────────────────────────────────────────┘
+                            │ HTTP (openapi-generated typed functions)
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│             calendar_client_service_api_client                       │
+│         Auto-generated typed Python functions + Pydantic models      │
+└─────────────────────────────┬───────────────────────────────────────────────┘
+                            │ HTTP/JSON over the network
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                   calendar_client_service (FastAPI)                  │
+│   /events, /tasks, /auth routes  ──  WebOAuthManager  ──  session cookies │
+└─────────────────────────────┬───────────────────────────────────────────────┘
+                            │ Python method calls (no network)
+                            ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│              google_calendar_client_impl (GoogleCalendarClient)      │
+│                Google Calendar API + Google Tasks API                │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Component Design
+---
 
-### 1. calendar_client_api (Interface)
+### Request Flow
 
-This component defines the abstract contracts that all implementations must satisfy. It contains zero concrete logic and has no external dependencies.
+Below is a complete trace of a `get_event("abc")` call from user code through all layers and back:
 
-**Modules:**
+1. **User code** calls `client.get_event("abc")` on a `ServiceAdapterClient` instance (registered via `calendar_client_adapter.register()`).
 
-- **`client.py`** — The `Client` ABC defines twelve abstract methods covering event CRUD (`get_event`, `create_event`, `update_event`, `delete_event`, `get_events`, `from_raw_data`) and task CRUD (`get_task`, `create_task`, `update_task`, `delete_task`, `get_tasks`, `mark_task_completed`). A module-level `get_client()` factory function serves as the injection point.
-- **`event.py`** — The `Event` ABC defines six read-only properties: `id`, `title`, `start_time`, `end_time`, `location`, and `description`.
-- **`task.py`** — The `Task` ABC defines six read-only properties: `id`, `title`, `start_time`, `end_time`, `description`, and `is_completed`.
-- **`exceptions.py`** — A hierarchy of custom exceptions: `CalendarError` (base), `EventNotFoundError`, `TaskNotFoundError`, and `CalendarOperationError`.
+2. **Adapter** (`ServiceAdapterClient.get_event`) calls the auto-generated function:
+   ```python
+   resp = get_event_events_event_id_get.sync(client=self._client, event_id="abc")
+   ```
 
-**Design decisions:**
+3. **Auto-generated client** constructs an HTTP `GET /events/abc` request with the `session_id` cookie attached and sends it to the service.
 
-- The interface is deliberately small. Consumers only need to understand these abstractions to use any calendar provider.
-- `Event` and `Task` are separate ABCs rather than a single base class because they have fundamentally different semantics (events have location; tasks have completion status).
-- The factory function `get_client()` raises `NotImplementedError` by default, which makes it immediately obvious if no implementation has been registered.
+4. **FastAPI service** (`event_routes.get_event`) receives the request. The `get_calendar_client` dependency reads the `session_id` cookie, retrieves stored OAuth credentials from `WebOAuthManager`, and constructs a `GoogleCalendarClient` connected with those credentials.
 
-### 2. google_calendar_client_impl (Implementation)
+5. **`GoogleCalendarClient.get_event("abc")`** is called. It issues an authenticated request to the Google Calendar REST API and returns a `GoogleCalendarEvent` object.
 
-This component provides the concrete Google Calendar and Google Tasks integration. It depends on `calendar_client_api` and the Google API client libraries.
+6. **FastAPI route** converts the `GoogleCalendarEvent` into a Pydantic `EventResponse` model and returns it as JSON with HTTP 200.
 
-**Modules:**
+7. **Auto-generated client** deserialises the JSON into a typed `EventResponse` model object and returns it.
 
-- **`google_calendar_impl.py`** — `GoogleCalendarClient` implements all twelve `Client` methods. It requires an explicit `connect()` call to authenticate and build API service objects. Event and task listing methods handle pagination automatically. All methods that require a connection raise `CalendarOperationError` if called before `connect()`.
-- **`event_impl.py`** — `GoogleCalendarEvent` accepts raw Google Calendar API JSON (as a `dict` or JSON string) and parses it into the `Event` contract. It handles both timed events (`dateTime`) and all-day events (`date`), validates required fields (`id`, `start`, `end`), and defaults missing `summary` to `"(No Title)"`.
-- **`task_impl.py`** — `GoogleCalendarTask` accepts raw Google Tasks API JSON and parses it into the `Task` contract. It uses `due` for end time, falls back to `due` for start time when `updated` is absent, maps `notes` to `description`, and derives completion status from the `status` field.
-- **`auth.py`** — Manages the full OAuth 2.0 lifecycle: loading cached tokens, refreshing expired tokens, running the interactive consent flow, and persisting tokens. Paths are configurable via constructor arguments or environment variables.
-- **`__init__.py`** — Imports and calls `register()`, which replaces `calendar_client_api.get_client` with the concrete factory. This means importing the package is sufficient to inject the implementation.
+8. **Adapter** wraps the `EventResponse` in an `AdapterEvent` (which implements `calendar_client_api.Event`) and returns it to the caller.
 
-**Design decisions:**
+9. **User code** receives an `Event` object — identical in interface to the `GoogleCalendarEvent` it received in HW1.
 
-- Raw JSON parsing lives in the data objects (`GoogleCalendarEvent`, `GoogleCalendarTask`) rather than in the client. This mirrors how the Google API returns structured JSON that needs provider-specific interpretation, and keeps the parsing logic colocated with the data it produces.
-- The client requires an explicit `connect()` step rather than connecting in the constructor. This separates object creation from side effects (network I/O, OAuth flow) and makes the client easier to test and configure.
+---
 
-## Dependency Injection
+### Sample API Response
 
-The DI mechanism is intentionally simple — no framework, just function reassignment:
+`GET /events/abc123xyz`
 
-1. `calendar_client_api.client` defines `get_client()` as a function that raises `NotImplementedError`.
-2. `google_calendar_client_impl.__init__` calls `register()`, which reassigns `calendar_client_api.get_client` to point to `get_client_impl()`.
-3. Consumer code imports the implementation package once (triggering registration), then exclusively uses the interface.
+```json
+{
+  "id": "abc123xyz",
+  "title": "Team Standup",
+  "start_time": "2025-06-01T09:00:00+00:00",
+  "end_time": "2025-06-01T09:30:00+00:00",
+  "location": "Room 101",
+  "description": "Daily sync"
+}
+```
 
+`GET /tasks/task456`
+
+```json
+{
+  "id": "task456",
+  "title": "Review PR #42",
+  "start_time": "2025-06-01T09:00:00+00:00",
+  "end_time": "2025-06-02T00:00:00+00:00",
+  "description": "Check the adapter implementation",
+  "is_completed": false
+}
+```
+
+`GET /auth/status` (authenticated)
+
+```json
+{
+  "authenticated": true,
+  "session_id": "a3f8c2d1-9b4e-4f77-832a-7e1d5a006bca"
+}
+```
+
+`GET /health`
+
+```json
+{
+  "status": "ok"
+}
+```
+
+---
+
+## API Design
+
+### Endpoints
+
+#### Health
+
+| Method | Path      | Description            | Response               |
+|--------|-----------|------------------------|------------------------|
+| GET    | `/health` | Service liveness check | `200 {"status": "ok"}` |
+
+#### Auth
+
+| Method | Path             | Description                                         | Response                 |
+|--------|------------------|-----------------------------------------------------|--------------------------|
+| GET    | `/auth/login`    | Redirects browser to Google OAuth 2.0 consent page | `302` redirect to Google |
+| GET    | `/auth/callback` | Exchanges auth code for tokens, sets session cookie | `200 AuthStatusResponse` |
+| GET    | `/auth/status`   | Reports whether the current session is authenticated | `200 AuthStatusResponse` |
+| POST   | `/auth/logout`   | Revokes session and clears session cookie           | `200 AuthStatusResponse` |
+
+#### Events
+
+| Method | Path                  | Description                  | Request Body                           | Response                  |
+|--------|-----------------------|------------------------------|----------------------------------------|---------------------------|
+| GET    | `/events`             | List events in a time range  | Query params: `start_time`, `end_time` | `200 List[EventResponse]` |
+| GET    | `/events/{event_id}`  | Fetch a single event by ID   | —                                      | `200 EventResponse`       |
+| POST   | `/events`             | Create a new event           | `EventCreate`                          | `201 EventResponse`       |
+| PUT    | `/events/{event_id}`  | Replace an existing event    | `EventUpdate`                          | `200 EventResponse`       |
+| DELETE | `/events/{event_id}`  | Remove an event              | —                                      | `204 No Content`          |
+
+**EventCreate body:**
+```json
+{
+  "title": "string (required)",
+  "start_time": "datetime (required)",
+  "end_time": "datetime (required)",
+  "location": "string (optional)",
+  "description": "string (optional)"
+}
+```
+
+**EventUpdate body:**
+```json
+{
+  "id": "string (required)",
+  "title": "string (required)",
+  "start_time": "datetime (required)",
+  "end_time": "datetime (required)",
+  "location": "string (optional)",
+  "description": "string (optional)"
+}
+```
+
+#### Tasks
+
+| Method | Path                        | Description                  | Request Body                           | Response                 |
+|--------|-----------------------------|------------------------------|----------------------------------------|--------------------------|
+| GET    | `/tasks`                    | List tasks in a time range   | Query params: `start_time`, `end_time` | `200 List[TaskResponse]` |
+| GET    | `/tasks/{task_id}`          | Fetch a single task by ID    | —                                      | `200 TaskResponse`       |
+| POST   | `/tasks`                    | Create a new task            | `TaskCreate`                           | `201 TaskResponse`       |
+| PUT    | `/tasks/{task_id}`          | Replace an existing task     | `TaskUpdate`                           | `200 TaskResponse`       |
+| DELETE | `/tasks/{task_id}`          | Remove a task                | —                                      | `204 No Content`         |
+| POST   | `/tasks/{task_id}/complete` | Mark a task as completed     | —                                      | `200 TaskResponse`       |
+
+**TaskCreate body:**
+```json
+{
+  "title": "string (required)",
+  "end_time": "datetime (required)",
+  "description": "string (optional)"
+}
+```
+
+---
+
+### Error Handling
+
+The service translates errors from three sources into HTTP responses:
+
+**FastAPI Validation Errors (422 Unprocessable Entity)**
+FastAPI automatically returns 422 when a required request body field or query parameter is missing or has the wrong type. The response body is a standard `HTTPValidationError` Pydantic model listing all validation failures.
+
+**Authentication Errors (401 Unauthorized)**
+The `get_calendar_client` dependency in `dependencies.py` raises `HTTPException(401)` in two cases: no `session_id` cookie is present on the request, or the session ID is not recognized by `WebOAuthManager`. Example response:
+```json
+{"detail": "Not authenticated. Visit /auth/login to start the OAuth flow."}
+```
+
+**OAuth Callback Errors (400 Bad Request)**
+The `/auth/callback` route wraps the token exchange in a try/except and raises `HTTPException(400)` if the code exchange fails (e.g. code already used, expired, or mismatched redirect URI):
+```json
+{"detail": "OAuth code exchange failed: <error from Google>"}
+```
+
+**Google API Errors**
+Errors raised by `GoogleCalendarClient` (which may wrap `googleapiclient.errors.HttpError` as `CalendarOperationError`, `EventNotFoundError`, or `TaskNotFoundError`) are not explicitly caught by the route handlers. This means they currently surface as unhandled 500 responses from FastAPI — a known limitation of the current implementation. On the client side, the adapter's `_handle_error` method maps `UnexpectedStatus(404)` back to `EventNotFoundError` or `TaskNotFoundError`, and any other `UnexpectedStatus` to `CalendarOperationError`, preserving the interface's exception contract for callers.
+
+---
+
+## The Adapter Pattern
+
+### Why It's Needed
+
+The auto-generated client (`calendar_client_service_api_client`) does not implement the `calendar_client_api.Client` abstract interface. It is a collection of standalone module-level functions (e.g. `get_event_events_event_id_get.sync(...)`) and Pydantic models (`EventResponse`, `TaskResponse`, etc.) generated mechanically from the OpenAPI spec. There is no `Client` subclass anywhere in it.
+
+Without the adapter, user code would have to change entirely when switching from the library to the service:
+- It would need to import and call the generated module-level functions directly.
+- It would receive Pydantic `EventResponse` objects instead of `calendar_client_api.Event` objects.
+- It could not be passed to any code expecting a `Client` instance.
+
+The adapter bridges this gap by implementing `calendar_client_api.Client` while internally delegating to the generated HTTP functions. This means the user's code is completely unchanged.
+
+### How It Works
+
+**Library usage (HW1):**
 ```python
-import google_calendar_client_impl  # registers itself
+from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 
-from calendar_client_api import get_client
-
-client = get_client()
+client = GoogleCalendarClient()
 client.connect()
+event = client.get_event("abc")
+print(event.title)  # GoogleCalendarEvent, satisfies Event interface
 ```
 
-This approach was chosen over alternatives (like entry points or a service locator) for its simplicity and explicitness. The trade-off is that the consumer must import the implementation package at least once, but this makes the dependency visible rather than hidden.
+**Service usage via adapter (HW2) — identical call site:**
+```python
+from calendar_client_adapter.adapter import register
 
-## Data Flow
+register(base_url="http://localhost:8000", session_id="<your-session-id>")
 
-### Event Retrieval
-
-```
-Consumer calls client.get_event("event_123")
-    → GoogleCalendarClient calls Google Calendar API
-    → API returns JSON dict: {"id": "event_123", "summary": "Meeting", "start": {...}, ...}
-    → GoogleCalendarEvent parses the dict, validates fields, converts datetimes
-    → Consumer receives an Event object with typed properties
+import calendar_client_api
+client = calendar_client_api.get_client()  # returns ServiceAdapterClient
+event = client.get_event("abc")
+print(event.title)  # AdapterEvent, satisfies Event interface
 ```
 
-### Task Completion
-
-```
-Consumer calls client.mark_task_completed("task_456")
-    → GoogleCalendarClient fetches existing task properties (preserves title, etc.)
-    → Sets status to "completed"
-    → Calls Google Tasks API update
-```
-
-## Authentication Flow
-
-```
-get_credentials() called
-    ├── token.json exists and valid? → return cached credentials
-    ├── token.json exists but expired? → refresh silently → persist → return
-    └── no token.json? → launch browser OAuth flow → persist token.json → return
+Internally, `ServiceAdapterClient.get_event` does this:
+```python
+def get_event(self, event_id: str) -> Event:
+    resp = get_event_events_event_id_get.sync(client=self._client, event_id=event_id)
+    if not resp or isinstance(resp, HTTPValidationError):
+        raise EventNotFoundError(f"Event {event_id} not found")
+    return AdapterEvent(resp)  # wraps EventResponse in the Event interface
 ```
 
-Credential resolution priority: environment variables → `token.json` → `credentials.json` (interactive fallback).
+`AdapterEvent` wraps the Pydantic `EventResponse` and satisfies the `calendar_client_api.Event` abstract interface by delegating each property:
+```python
+class AdapterEvent(Event):
+    def __init__(self, response: EventResponse) -> None:
+        self._response = response
 
-## Error Handling Strategy
+    @property
+    def id(self) -> str:
+        return self._response.id
 
-- **Interface level**: Custom exceptions (`CalendarError` hierarchy) provide a provider-agnostic error contract.
-- **Implementation level**: `CalendarOperationError` is raised when methods are called before `connect()`. Raw API errors from Google propagate naturally.
-- **Data object level**: `TypeError` for missing required fields (`id`, `start`, `end`, `title`, `due`). `ValueError` for unparseable JSON or invalid datetime formats.
+    @property
+    def title(self) -> str:
+        return self._response.title
+    # ... start_time, end_time, location, description
+```
+
+The `register()` helper patches `calendar_client_api.get_client` so that any code already using the factory function gets the service-backed client transparently:
+```python
+def register(base_url: str = "http://127.0.0.1:8000", session_id: str = "") -> None:
+    calendar_client_api.get_client = lambda: get_client_impl(base_url, session_id)
+```
+
+---
 
 ## Testing Strategy
 
-The project uses a three-tier testing approach:
+### What We Tested and Why
 
-- **Unit tests** verify individual components in isolation. External APIs are mocked. These tests are fast, deterministic, and form the bulk of the test suite.
-- **Integration tests** verify that dependency injection works correctly — importing the implementation package causes `get_client()` to return a `GoogleCalendarClient` instance.
-- **End-to-end tests** run complete workflows against real Google APIs to validate that everything works in production conditions.
+Testing was focused on verifying each layer in isolation and then verifying that the layers compose correctly. All five components have their own test suites, and there are additional cross-cutting integration and E2E tests at the repository root.
 
-Coverage is enforced at 85% with `# pragma: no cover` for intentionally untestable lines (e.g., `raise NotImplementedError` in ABCs).
+### Test Types
 
-## Future Considerations
+**Unit tests** (`components/*/tests/`)
 
-- Additional providers (Outlook, Apple Calendar) can be added as new implementation packages without modifying the interface or existing implementation.
-- The `Client` ABC could be extended with batch operations or webhook support as requirements evolve.
-- A service locator or entry-point-based discovery mechanism could replace manual import-based DI if the number of implementations grows.
+- `calendar_client_service/tests/` — Route-level unit tests for the FastAPI service. Every endpoint (events, tasks, auth) is exercised against a `TestClient` with the `get_calendar_client` and `get_oauth_manager` dependencies overridden by `MagicMock` instances. These tests verify correct HTTP status codes, response shapes, and that the right client methods are called with the right arguments — without ever touching Google's API.
+
+- `calendar_client_adapter/tests/test_adapter.py` — Unit tests for `ServiceAdapterClient`. The auto-generated sync functions (e.g. `get_event_events_event_id_get.sync`) are patched with `unittest.mock.patch` and return pre-built `EventResponse` / `TaskResponse` fixtures. This isolates the adapter logic (wrapping, error mapping, `AdapterEvent` / `AdapterTask` construction) from both the service and the network.
+
+- `calendar_client_service_api_client/tests/test_smoke.py` — Smoke tests for the auto-generated client. They patch `httpx.Client.request` directly and verify that the generated endpoint functions (`health_health_get.sync`, `auth_status_auth_status_get.sync`) are importable, callable, and correctly deserialise a mocked HTTP response — confirming the generated code is structurally sound without requiring a running service.
+
+- `google_calendar_client_impl/tests/` — Unit tests for the Google Calendar implementation. `test_google_calendar_impl.py` patches `get_credentials` and `googleapiclient.discovery.build` to verify that `connect()` and `connect_with_credentials()` construct the right service objects. `test_event_impl.py` and `test_task_impl.py` verify that `GoogleCalendarEvent` and `GoogleCalendarTask` correctly parse raw Google API dict payloads into the abstract domain model properties.
+
+- `calendar_client_api/tests/` — Contract demonstration tests for the abstract interface. `test_calendar_client_api.py` uses `Mock(spec=Client)` / `Mock(spec=Event)` / `Mock(spec=Task)` to demonstrate and verify the expected API contracts (e.g. that `get_events` returns an iterator of `Event` objects). These serve as living documentation of what any conforming implementation must provide.
+
+**Integration tests** (`components/calendar_client_adapter/tests/test_integration.py`, `tests/integration/`)
+
+- `test_integration.py` (adapter) — Wires `ServiceAdapterClient` against a real in-process FastAPI `TestClient` using `httpx`'s transport injection, with `get_calendar_client` overridden to return a `MagicMock`. This validates the full adapter → HTTP → route → mock client chain without requiring a running server or live Google credentials.
+
+- `tests/integration/test_client_integration.py` — Integration tests against the live Google APIs using real credentials (`token.json` / `credentials.json`). These verify that `GoogleCalendarClient` correctly round-trips events and tasks through the actual Google Calendar and Tasks APIs. If no credential files are found, the tests fail with an explicit message rather than being silently skipped.
+
+- `tests/integration/test_injection.py` — Verifies that simply importing `google_calendar_client_impl` causes `GoogleCalendarClient` to register itself with `calendar_client_api.get_client()`, confirming that the dependency injection mechanism from HW1 still works correctly alongside the new service architecture.
+
+**End-to-End tests** (`tests/e2e/`)
+
+Full lifecycle tests marked with `@pytest.mark.e2e` that run against a live `GoogleCalendarClient` with real credentials. Each test creates a resource, verifies it, modifies it, and deletes it — confirming cleanup by asserting the resource is either a 404 `HttpError` or marked `cancelled` / `deleted` in the raw Google API response. Like the integration tests, these fail explicitly if no credentials are present on disk.
+
+### Mocking Strategy
+
+| Component | What Was Mocked | Why |
+|---|---|---|
+| Service route tests | `get_calendar_client` dependency (→ `MagicMock`) | Isolates HTTP routing and serialization logic from Google API calls; no credentials or network needed |
+| Service auth route tests | `get_oauth_manager` dependency (→ `MagicMock`) | Isolates OAuth flow from real Google OAuth; avoids browser redirects in CI |
+| Adapter unit tests | `get_event_events_event_id_get.sync` and other generated functions | Isolates adapter mapping logic from the HTTP client and service; fast and deterministic |
+| Adapter integration tests | `get_calendar_client` dependency (→ `MagicMock`), real FastAPI `TestClient` transport | Tests the full adapter ↔ service path without a running server or real Google credentials |
+| Generated client smoke tests | `httpx.Client.request` (→ `MagicMock`) | Verifies generated functions are importable and callable without a running service |
+| `google_calendar_client_impl` unit tests | `get_credentials`, `googleapiclient.discovery.build` | Verifies service construction logic without real OAuth credentials or network calls |
+
+**What was tested with real implementations:** The `tests/integration/` and `tests/e2e/` suites both use live Google API credentials and make real network calls to Google's Calendar and Tasks APIs. The E2E tests are additionally gated behind a `@pytest.mark.e2e` pytest mark so they can be selectively excluded from fast CI runs; the integration tests have no such mark and will fail explicitly if credentials are absent.
+
+### Interface Compliance
+
+The adapter's compliance with the `calendar_client_api.Client` interface is enforced at two levels:
+
+**Static enforcement:** `ServiceAdapterClient` extends `calendar_client_api.client.Client` (which is an `ABC`). Python raises `TypeError` at instantiation time if any abstract method is not implemented, so it is impossible to ship an incomplete adapter without a test (or even an import) catching it immediately.
+
+**Test-level enforcement:** The adapter integration test (`test_integration.py`) constructs a `ServiceAdapterClient`, calls `get_event` and `get_task` on it, and asserts that the returned objects satisfy the interface's property contract (`id`, `title`, `is_completed`, etc.). The unit tests in `test_adapter.py` similarly assert property values on the returned `AdapterEvent` and `AdapterTask` objects, confirming that wrapping an `EventResponse` / `TaskResponse` correctly exposes the expected interface properties. Together, these two layers — ABC instantiation and property-level assertions — ensure that `ServiceAdapterClient` is both structurally and behaviourally compliant with the `Client` contract.

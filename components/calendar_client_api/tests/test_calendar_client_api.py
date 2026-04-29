@@ -15,12 +15,12 @@ from unittest.mock import Mock
 from calendar_client_api import Client, Event, Task
 
 
-def test_client_get_events_contract() -> None:
+def test_client_list_events_contract() -> None:
     """
-    Verifies and demonstrates the contract for the `get_events` method.
+    Verifies and demonstrates the contract for the `list_events` method.
 
-    Any implementation of the Client abstraction must provide `get_events`
-    which returns an iterator of Event objects for a provided time range.
+    Any implementation of the Client abstraction must provide `list_events`
+    which returns a list of Event objects for a provided time range.
     """
     # ARRANGE
     start = dt.datetime(2026, 2, 16, 9, 0, tzinfo=dt.UTC)
@@ -31,16 +31,14 @@ def test_client_get_events_contract() -> None:
     mock_event.title = "Team Meeting"
 
     mock_client = Mock(spec=Client)
-    mock_client.get_events.return_value = iter([mock_event])
+    mock_client.list_events.return_value = [mock_event]
 
     # ACT
-    events = mock_client.get_events(start_time=start, end_time=end)
-    first_event = next(events, None)
+    events = mock_client.list_events(start_time=start, end_time=end)
+    first_event = events[0] if events else None
 
     # ASSERT
-    mock_client.get_events.assert_called_once_with(
-        start_time=start, end_time=end
-    )
+    mock_client.list_events.assert_called_once_with(start_time=start, end_time=end)
     assert first_event is not None
     assert first_event.id == "evt_1"
     assert first_event.title == "Team Meeting"
@@ -59,9 +57,7 @@ def test_client_get_event_contract() -> None:
     retrieved_event = mock_client.get_event(event_id="evt_specific")
 
     # ASSERT
-    mock_client.get_event.assert_called_once_with(
-        event_id="evt_specific"
-    )
+    mock_client.get_event.assert_called_once_with(event_id="evt_specific")
     assert retrieved_event.id == "evt_specific"
 
 
@@ -75,9 +71,7 @@ def test_client_delete_event_contract() -> None:
     mock_client.delete_event(event_id="evt_to_delete")
 
     # ASSERT
-    mock_client.delete_event.assert_called_once_with(
-        event_id="evt_to_delete"
-    )
+    mock_client.delete_event.assert_called_once_with(event_id="evt_to_delete")
 
 
 def test_client_from_raw_data_contract() -> None:

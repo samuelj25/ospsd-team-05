@@ -3,13 +3,19 @@ name = "ospsd-team-05"
 version = "0.1.0"
 description = "Repository for a calendar client"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = []
 
 [tool.uv.workspace]
 members = [
     "components/calendar_client_api",
     "components/google_calendar_client_impl",
+    "components/calendar_client_service",
+    "components/calendar_client_service_api_client",
+    "components/calendar_client_adapter",
+    "components/ai_client_api",
+    "components/gemini_ai_client_impl",
+    "components/slack_chat_adapter",
 ]
 
 [tool.ruff]
@@ -28,17 +34,25 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = ["INP001"] # ignores implicit namespace for tests
-"**/tests/**/*.py" = ["INP001"] # ignores implicit namespace for tests
+"tests/**/*.py" = ["INP001", "PLR2004", "D102", "D401"] # ignores implicit namespace, magic numbers, docstrings for tests
+"**/tests/**/*.py" = ["INP001", "PLR2004", "D102", "D401"] # ignores implicit namespace, magic numbers, docstrings for tests
 
 [tool.mypy]
 strict = true
 explicit_package_bases = true
+exclude = ["^components/calendar_client_service_api_client/"]
 mypy_path = [
     "components/calendar_client_api/src",
     "components/google_calendar_client_impl/src",
+    "components/calendar_client_service/src",
+    "components/calendar_client_adapter/src",
+    "components/calendar_client_service_api_client",
+    "components/ai_client_api/src",
+    "components/gemini_ai_client_impl/src",
+    "components/slack_chat_adapter/src",
     "tests",
     "components/google_calendar_client_impl/tests",
+    "components/calendar_client_adapter/tests",
 ]
 
 [[tool.mypy.overrides]]
@@ -47,18 +61,38 @@ module = [
     "google.auth.*",
     "google.oauth2.*",
     "google_auth_oauthlib.*",
+    "google.generativeai.*",
+    "calendar_client_service_api_client.*",
+    "slack_sdk.*",
+    "chat_client_api.*",
+    "opentelemetry.*",
 ]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["calendar_client_adapter.adapter"]
+ignore_errors = true
+
+[[tool.mypy.overrides]]
+module = ["calendar_client_adapter.tests.test_adapter"]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 pythonpath = [
   "components/calendar_client_api/src",
   "components/google_calendar_client_impl/src",
+  "components/calendar_client_service/src",
+  "components/calendar_client_adapter/src",
+  "components/calendar_client_service_api_client",
+  "components/ai_client_api/src",
+  "components/gemini_ai_client_impl/src",
+  "components/slack_chat_adapter/src",
 ]
 testpaths = ["tests", "components/*/tests"]
 addopts = [
   "--cov=calendar_client_api",
   "--cov=google_calendar_client_impl",
+  "--cov=calendar_client_service",
   "--cov-report=term-missing",
   "--cov-report=html:coverage-reports/htmlcov",
   "--cov-report=xml:coverage-reports/coverage.xml",
@@ -71,6 +105,7 @@ markers = [
 source = [
   "components/calendar_client_api/src",
   "components/google_calendar_client_impl/src",
+  "components/calendar_client_service/src",
 ]
 omit = [
   "*/tests/*",
@@ -96,4 +131,11 @@ dev = [
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.25.0",
+    "httpx>=0.27.0",
+    "openapi-python-client>=0.28.3",
+    "types-python-dateutil>=2.9.0.20260305",
+    "uvicorn>=0.42.0",
 ]
+
+[tool.uv.sources]
+ospsd-calendar-api = { git = "https://github.com/DeMoliT1on/ospsd-calendar-api" }
