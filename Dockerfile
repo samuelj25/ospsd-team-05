@@ -23,4 +23,4 @@ RUN uv sync --frozen --no-dev --all-packages
 EXPOSE 8000
 
 # Define the command to start the application using uvicorn (Render provides $PORT)
-CMD uv run uvicorn calendar_client_service.app:app --host 0.0.0.0 --port ${PORT:-8000}
+CMD ["sh", "-c", ".venv/bin/uvicorn calendar_client_service.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
