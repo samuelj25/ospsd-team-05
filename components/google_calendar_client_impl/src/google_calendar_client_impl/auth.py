@@ -196,6 +196,7 @@ class WebOAuthManager:
 
         # In-memory session store: session_id -> Credentials
         self._sessions: dict[str, Credentials] = {}
+        self._pending_states: set[str] = set()
 
     def _build_flow(self) -> Flow:
         """Construct a ``Flow`` instance from the stored client credentials."""
@@ -239,7 +240,23 @@ class WebOAuthManager:
             prompt="consent",  # force refresh token on every consent
         )
         return auth_url, returned_state
+    
+    def register_state(self, state: str) -> None:
+        """Store an expected OAuth state token to validate at callback time."""
+        self._pending_states.add(state)
 
+    def consume_state(self, state: str) -> bool:
+        """
+        Validate and consume an OAuth state token.
+
+        Returns True if the state was expected (CSRF check passes), False otherwise.
+        A state can only be consumed once.
+        """
+        if state in self._pending_states:
+            self._pending_states.discard(state)
+            return True
+        return False
+    
     def handle_callback(self, code: str) -> tuple[str, Credentials]:
         """
         Exchange an authorization code for credentials and start a session.

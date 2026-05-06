@@ -21,20 +21,14 @@ def login(
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
     slack_user_id: str | None = None,
 ) -> RedirectResponse:
-    """
-    Redirect the user's browser to the Google OAuth 2.0 consent page.
-
-    After the user grants access, Google will redirect back to ``/auth/callback``
-    with an authorization ``code`` query parameter.
-
-    Returns:
-        A 302 redirect to the Google authorization URL.
-
-    """
-    state = None
+    csrf_token = secrets.token_urlsafe(32)
     if slack_user_id:
-        state = f"{secrets.token_urlsafe(32)}::{slack_user_id}"
+        state = f"{csrf_token}::{slack_user_id}"
+    else:
+        state = csrf_token
     auth_url, _state = oauth_manager.get_authorization_url(state=state)
+    # Store the CSRF token server-side so the callback can verify it
+    oauth_manager.register_state(csrf_token)
     return RedirectResponse(url=auth_url, status_code=status.HTTP_302_FOUND)
 
 
@@ -67,6 +61,14 @@ def callback(
             invalid, or mismatched redirect URI).
 
     """
+    # Verify the CSRF state token BEFORE exchanging the code
+    csrf_token = state.split("::", 1)[0] if (state and "::" in state) else state
+    if not csrf_token or not oauth_manager.consume_state(csrf_token):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or missing OAuth state — possible CSRF attack.",
+        )
+
     try:
         session_id, _ = oauth_manager.handle_callback(code=code)
     except Exception as exc:
