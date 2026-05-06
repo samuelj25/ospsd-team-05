@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from calendar_client_service.ai_tools import dispatch_tool_call
+from ospsd_calendar_api.exceptions import CalendarOperationError
 from ospsd_calendar_api.models import Event
 
 if TYPE_CHECKING:
@@ -174,9 +175,11 @@ class TestEdgeCases:
     def test_client_exception_is_caught_and_returned(
         self, mock_client: GoogleCalendarClient
     ) -> None:
-        cast("MagicMock", mock_client).get_event.side_effect = RuntimeError("API down")
+        cast("MagicMock", mock_client).get_event.side_effect = CalendarOperationError("API down")
 
         result = dispatch_tool_call("get_event", {"event_id": "x"}, mock_client)
 
         assert result.is_error
-        assert "API down" in result.content
+        payload = json.loads(result.content)
+        assert payload["error_category"] == "api_error"
+        assert "API down" in payload["detail"]

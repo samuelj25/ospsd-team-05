@@ -9,6 +9,10 @@ commands:
             if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
                 echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
                 echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+
+                python -c 'import json, shlex; data=json.load(open("credentials.json")); cfg=data.get("web") or data.get("installed") or {}; cid=cfg.get("client_id"); secret=cfg.get("client_secret"); assert cid and secret, "credentials.json missing client_id or client_secret"; print("export GOOGLE_OAUTH_CLIENT_ID=" + shlex.quote(cid)); print("export GOOGLE_OAUTH_CLIENT_SECRET=" + shlex.quote(secret)); print("export GOOGLE_OAUTH_CREDENTIALS_PATH=$PWD/credentials.json"); print("export GOOGLE_OAUTH_TOKEN_PATH=$PWD/token.json"); print("export OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback")' >> "$BASH_ENV"
+
+                source "$BASH_ENV"
             else
                 echo "Error: Base64 GCP variables are not set. Failing Step."
                 exit 1
@@ -183,12 +187,10 @@ jobs:
             IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
             docker build -t "$IMAGE_TAG" .
             docker push "$IMAGE_TAG"
-            # Also tag as :latest for convenience
             docker tag "$IMAGE_TAG" \
               "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:latest"
             docker push \
               "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:latest"
-            # Export the image URL for downstream jobs
             echo "export IMAGE_URL=$IMAGE_TAG" >> $BASH_ENV
 
   deploy_to_cloud_run:
@@ -201,10 +203,8 @@ jobs:
           command: |
             export GOOGLE_CREDENTIALS=$(printf '%s' "$GCP_SA_KEY_B64" | tr -d ' \n\r' | base64 -d)
 
-            # Verify credentials loaded correctly
             echo "$GOOGLE_CREDENTIALS" | head -c 30
 
-            # Write tfvars — no secret values, they live in GCP Secret Manager
             IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
             cat > infra/terraform.tfvars \<<EOF
             project_id     = "${GCP_PROJECT_ID}"

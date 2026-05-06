@@ -136,6 +136,9 @@ def create_app() -> FastAPI:
     telemetry middleware, adds the ``/metrics`` endpoint, configures
     OpenTelemetry tracing, and registers exception handlers.
 
+    Raises:
+        RuntimeError: If ``SLACK_SIGNING_SECRET`` is not set.
+
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
 
@@ -154,6 +157,18 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
 
     application.add_middleware(TelemetryMiddleware)
+
+    # ------------------------------------------------------------------
+    # Startup validation — fail fast if required env vars are missing
+    # ------------------------------------------------------------------
+
+    if not os.environ.get("SLACK_SIGNING_SECRET"):
+        msg = (
+            "SLACK_SIGNING_SECRET is not set. "
+            "The /slack/events endpoint cannot verify request signatures without it. "
+            "Set this environment variable before starting the service."
+        )
+        raise RuntimeError(msg)
 
     # ------------------------------------------------------------------
     # Health

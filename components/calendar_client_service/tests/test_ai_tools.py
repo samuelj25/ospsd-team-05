@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
+from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 from calendar_client_service.ai_tools import dispatch_tool_call
 
@@ -131,12 +132,36 @@ def test_dispatch_tool_call_unknown_tool(mock_calendar_client: MagicMock) -> Non
 
 
 def test_dispatch_tool_call_exception(mock_calendar_client: MagicMock) -> None:
-    """Test that tool exceptions are caught and returned as errors."""
-    mock_calendar_client.get_event.side_effect = Exception("Test Exception")
+    """Test that CalendarOperationError is caught and returned as a typed error."""
+    mock_calendar_client.get_event.side_effect = CalendarOperationError("API is down")
 
     args = {"event_id": "789"}
     result = dispatch_tool_call("get_event", args, mock_calendar_client)
 
     assert result.tool_name == "get_event"
     assert result.is_error
-    assert "Test Exception" in result.content
+    payload = json.loads(result.content)
+    assert payload["error_category"] == "api_error"
+    assert "API is down" in payload["detail"]
+
+def test_dispatch_tool_call_event_not_found(mock_calendar_client: MagicMock) -> None:
+    """Test that EventNotFoundError maps to the not_found error category."""
+    mock_calendar_client.get_event.side_effect = EventNotFoundError("event 789 not found")
+
+    result = dispatch_tool_call("get_event", {"event_id": "789"}, mock_calendar_client)
+
+    assert result.is_error
+    payload = json.loads(result.content)
+    assert payload["error_category"] == "not_found"
+
+def test_dispatch_tool_call_invalid_args(mock_calendar_client: MagicMock) -> None:
+    """Test that bad ISO date strings map to the invalid_argument error category."""
+    result = dispatch_tool_call(
+        "list_events",
+        {"start": "not-a-date", "end": "also-not-a-date"},
+        mock_calendar_client,
+    )
+
+    assert result.is_error
+    payload = json.loads(result.content)
+    assert payload["error_category"] == "invalid_argument"
