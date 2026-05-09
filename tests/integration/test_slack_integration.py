@@ -70,7 +70,10 @@ def client(
     app.dependency_overrides[get_slack_client] = lambda: mock_chat
     app.dependency_overrides[get_oauth_manager] = lambda: mock_oauth
 
-    with patch("calendar_client_service.slack_routes.GoogleCalendarClient") as mock_gc:
+    with (
+        patch("calendar_client_service.slack_routes.GoogleCalendarClient") as mock_gc,
+        patch("calendar_client_service.slack_routes._verify_slack_signature", return_value=True),
+    ):
         mock_gc.return_value = MagicMock()
         yield TestClient(app, raise_server_exceptions=True)
 
@@ -180,7 +183,10 @@ class TestUnauthenticatedUser:
         app.dependency_overrides[get_slack_client] = lambda: mock_chat
         app.dependency_overrides[get_oauth_manager] = lambda: unauthed_oauth
 
-        with patch("calendar_client_service.slack_routes.GoogleCalendarClient"):
+        with (
+            patch("calendar_client_service.slack_routes.GoogleCalendarClient"),
+            patch("calendar_client_service.slack_routes._verify_slack_signature", return_value=True),
+        ):
             tc = TestClient(app, raise_server_exceptions=True)
             tc.post("/slack/events", json=_msg("Hello!", user="U_UNKNOWN"))
 

@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 
 import pytest
 from calendar_client_service.ai_tools import dispatch_tool_call
-from ospsd_calendar_api.models import Event
 from ospsd_calendar_api.exceptions import CalendarOperationError
+from ospsd_calendar_api.models import Event
 
 if TYPE_CHECKING:
     from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
