@@ -8,11 +8,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ai_client_api.models import ToolDefinition, ToolResult
-from calendar_client_api.exceptions import (
-    CalendarOperationError,
-    EventNotFoundError,
-    TaskNotFoundError,
-)
+from calendar_client_api.exceptions import TaskNotFoundError
+from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 if TYPE_CHECKING:
     from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient

@@ -25,9 +25,9 @@ def mock_clients() -> dict[str, Any]:
 
 
 def test_verify_slack_signature_no_secret() -> None:
-    """Test signature verification when no secret is configured."""
-    with patch.dict("os.environ", clear=True):
-        assert _verify_slack_signature(b"body", {}) is True
+    """With no secret set, signature verification fails closed (returns False)."""
+    with patch.dict("os.environ", {}, clear=True):
+        assert _verify_slack_signature(b"body", {}) is False
 
 
 def test_verify_slack_signature_valid() -> None:
