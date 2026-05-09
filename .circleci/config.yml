@@ -206,7 +206,7 @@ jobs:
 
             # Write tfvars — no secret values, they live in GCP Secret Manager
             IMAGE_TAG="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${AR_REPOSITORY}/calendar-client-service:${CIRCLE_SHA1}"
-            cat > infra/terraform.tfvars \<<EOF
+            cat > infra/terraform.tfvars <<EOF
             project_id     = "${GCP_PROJECT_ID}"
             region         = "${GCP_REGION}"
             service_name   = "calendar-client-service"
