@@ -185,7 +185,9 @@ class TestUnauthenticatedUser:
 
         with (
             patch("calendar_client_service.slack_routes.GoogleCalendarClient"),
-            patch("calendar_client_service.slack_routes._verify_slack_signature", return_value=True),
+            patch(
+                "calendar_client_service.slack_routes._verify_slack_signature", return_value=True
+                ),
         ):
             tc = TestClient(app, raise_server_exceptions=True)
             tc.post("/slack/events", json=_msg("Hello!", user="U_UNKNOWN"))
