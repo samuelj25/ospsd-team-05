@@ -45,6 +45,10 @@ def _verify_slack_signature(request_body: bytes, headers: dict[str, str]) -> boo
     """
     Return True if the request body matches the Slack signing secret.
 
+    The secret is read from the ``SLACK_SIGNING_SECRET`` environment variable,
+    which must be set before the application starts (``create_app`` enforces
+    this).  Requests with a missing or stale timestamp are rejected outright.
+
     Args:
         request_body: Raw bytes of the incoming request body.
         headers: Request headers dict (lowercase keys).
@@ -54,9 +58,6 @@ def _verify_slack_signature(request_body: bytes, headers: dict[str, str]) -> boo
 
     """
     secret = os.environ.get("SLACK_SIGNING_SECRET", "")
-    if not secret:
-        logger.warning("SLACK_SIGNING_SECRET not set — skipping signature verification.")
-        return True
 
     ts = headers.get("x-slack-request-timestamp", "")
     sig = headers.get("x-slack-signature", "")

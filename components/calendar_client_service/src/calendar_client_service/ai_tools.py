@@ -8,6 +8,11 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ai_client_api.models import ToolDefinition, ToolResult
+from calendar_client_api.exceptions import (
+    CalendarOperationError,
+    EventNotFoundError,
+    TaskNotFoundError,
+)
 
 if TYPE_CHECKING:
     from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
@@ -329,20 +334,47 @@ def dispatch_tool_call(
 
     Returns:
         A :class:`ToolResult` with the serialised response or error message.
+        On error, ``content`` is a JSON string with ``error_category`` and
+        ``detail`` keys so callers and telemetry can distinguish failure modes.
 
     """
     try:
         result = _dispatch_event_tool(tool_name, args, client)
         if result is None:
             result = _dispatch_task_tool(tool_name, args, client)
-    except Exception as exc:
-        logger.exception("Tool call %s failed", tool_name)
-        return ToolResult(tool_name=tool_name, content=str(exc), is_error=True)
+
+    except (EventNotFoundError, TaskNotFoundError) as exc:
+        logger.warning("Tool call %s — resource not found: %s", tool_name, exc)
+        return ToolResult(
+            tool_name=tool_name,
+            content=json.dumps({"error_category": "not_found", "detail": str(exc)}),
+            is_error=True,
+        )
+
+    except CalendarOperationError as exc:
+        logger.exception("Tool call %s — calendar operation error", tool_name)
+        return ToolResult(
+            tool_name=tool_name,
+            content=json.dumps({"error_category": "api_error", "detail": str(exc)}),
+            is_error=True,
+        )
+
+    except (KeyError, ValueError) as exc:
+        logger.warning("Tool call %s — invalid arguments: %s", tool_name, exc)
+        return ToolResult(
+            tool_name=tool_name,
+            content=json.dumps({"error_category": "invalid_argument", "detail": str(exc)}),
+            is_error=True,
+        )
+
     else:
         if result is None:
             return ToolResult(
                 tool_name=tool_name,
-                content=f"Unknown tool: {tool_name}",
+                content=json.dumps({
+                    "error_category": "unknown_tool",
+                    "detail": f"Unknown tool: {tool_name}",
+                }),
                 is_error=True,
             )
         return result
