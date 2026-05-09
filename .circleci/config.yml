@@ -9,6 +9,30 @@ commands:
             if [ -n "$GCP_CREDENTIALS_JSON_BASE64" ] && [ -n "$GCP_TOKEN_JSON_BASE64" ]; then
                 echo "$GCP_CREDENTIALS_JSON_BASE64" | base64 --decode > credentials.json
                 echo "$GCP_TOKEN_JSON_BASE64" | base64 --decode > token.json
+
+                python - <<'PY' >> "$BASH_ENV"
+            import json
+            import shlex
+
+            with open("credentials.json") as f:
+                data = json.load(f)
+
+            cfg = data.get("web") or data.get("installed") or {}
+
+            client_id = cfg.get("client_id")
+            client_secret = cfg.get("client_secret")
+
+            if not client_id or not client_secret:
+                raise RuntimeError("credentials.json is missing client_id or client_secret")
+
+            print(f"export GOOGLE_OAUTH_CLIENT_ID={shlex.quote(client_id)}")
+            print(f"export GOOGLE_OAUTH_CLIENT_SECRET={shlex.quote(client_secret)}")
+            print("export GOOGLE_OAUTH_CREDENTIALS_PATH=$PWD/credentials.json")
+            print("export GOOGLE_OAUTH_TOKEN_PATH=$PWD/token.json")
+            print("export OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback")
+            PY
+
+                source "$BASH_ENV"
             else
                 echo "Error: Base64 GCP variables are not set. Failing Step."
                 exit 1
