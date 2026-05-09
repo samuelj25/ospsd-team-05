@@ -30,8 +30,8 @@ _SESSION = "session-test-abc"
 
 @pytest.fixture(autouse=True)
 def mock_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Ensure SLACK_SIGNING_SECRET is unset so tests skip signature verification."""
-    monkeypatch.delenv("SLACK_SIGNING_SECRET", raising=False)
+    """Set a dummy SLACK_SIGNING_SECRET so create_app() passes startup validation."""
+    monkeypatch.setenv("SLACK_SIGNING_SECRET", "test-secret")
 
 
 @pytest.fixture

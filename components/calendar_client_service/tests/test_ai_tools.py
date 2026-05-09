@@ -5,9 +5,8 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
-from calendar_client_api.exceptions import TaskNotFoundError
-from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
+from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 from calendar_client_service.ai_tools import dispatch_tool_call
 
