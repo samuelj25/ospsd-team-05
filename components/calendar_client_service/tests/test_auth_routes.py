@@ -92,7 +92,9 @@ class TestAuthCallback:
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
         mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "valid-code", "state": "valid-token"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
+        )
 
         assert response.status_code == 200
         assert "session_id" in response.cookies
@@ -107,7 +109,9 @@ class TestAuthCallback:
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
         mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "valid-code", "state": "valid-token"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
+        )
 
         data = response.json()
         assert data["authenticated"] is True
@@ -122,7 +126,9 @@ class TestAuthCallback:
         mock_oauth_manager.handle_callback.side_effect = ValueError("bad code")
         mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "bad-code", "state": "valid-token"})
+        response = client.get(
+            "/auth/callback", params={"code": "bad-code", "state": "valid-token"}
+        )
 
         assert response.status_code == 400
         assert "bad code" in response.json()["detail"]
@@ -133,7 +139,9 @@ class TestAuthCallback:
         mock_oauth_manager: MagicMock,
     ) -> None:
         """Callback returns HTTP 400 when no state parameter is provided."""
-        response = client.get("/auth/callback", params={"code": "valid-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code"}
+        )
 
         assert response.status_code == 400
         mock_oauth_manager.handle_callback.assert_not_called()
@@ -146,7 +154,9 @@ class TestAuthCallback:
         """Callback returns HTTP 400 when the state token fails CSRF validation."""
         mock_oauth_manager.consume_state.return_value = False
 
-        response = client.get("/auth/callback", params={"code": "valid-code", "state": "forged-token"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "forged-token"}
+        )
 
         assert response.status_code == 400
         assert "CSRF" in response.json()["detail"]

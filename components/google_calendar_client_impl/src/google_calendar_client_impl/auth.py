@@ -240,7 +240,7 @@ class WebOAuthManager:
             prompt="consent",  # force refresh token on every consent
         )
         return auth_url, returned_state
-    
+
     def register_state(self, state: str) -> None:
         """Store an expected OAuth state token to validate at callback time."""
         self._pending_states.add(state)
@@ -256,7 +256,7 @@ class WebOAuthManager:
             self._pending_states.discard(state)
             return True
         return False
-    
+
     def handle_callback(self, code: str) -> tuple[str, Credentials]:
         """
         Exchange an authorization code for credentials and start a session.

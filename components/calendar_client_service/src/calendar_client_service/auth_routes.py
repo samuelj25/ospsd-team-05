@@ -21,11 +21,9 @@ def login(
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
     slack_user_id: str | None = None,
 ) -> RedirectResponse:
+    """Initiate the OAuth 2.0 authorisation flow and redirect to Google."""
     csrf_token = secrets.token_urlsafe(32)
-    if slack_user_id:
-        state = f"{csrf_token}::{slack_user_id}"
-    else:
-        state = csrf_token
+    state = f"{csrf_token}::{slack_user_id}" if slack_user_id else csrf_token
     auth_url, _state = oauth_manager.get_authorization_url(state=state)
     # Store the CSRF token server-side so the callback can verify it
     oauth_manager.register_state(csrf_token)
