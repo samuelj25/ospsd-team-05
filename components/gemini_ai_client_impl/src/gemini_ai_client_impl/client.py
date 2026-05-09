@@ -65,21 +65,21 @@ class GeminiAIClient(AbstractAIClient):
 
     def __init__(
         self,
-        model_name: str = "gemma-4-31b-it",
+        model_name: str = "gemini-2.5-flash",
         api_key: str | None = None,
     ) -> None:
         """
         Initialize the GeminiAIClient.
 
         Args:
-            model_name: Gemini model identifier (default ``gemini-.5-flash``).
+            model_name: Gemini model identifier (default ``gemini-2.5-flash``).
             api_key: Optional explicit API key; falls back to ``GEMINI_API_KEY`` env var.
 
         """
         resolved_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not resolved_key:
             msg = "GEMINI_API_KEY is not set in the environment."
-            raise RuntimeError(msg)
+            raise ValueError(msg)
         genai.configure(api_key=resolved_key) # type: ignore[attr-defined]
         self._model_name = model_name
 
