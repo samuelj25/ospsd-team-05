@@ -1,0 +1,55 @@
+interactions:
+- request:
+    body: null
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '0'
+      user-agent:
+      - (gzip)
+    method: GET
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=2026-05-11T00%3A00%3A00%2B00%3A00&timeMax=2026-05-17T23%3A59%3A59%2B00%3A00&singleEvents=true&orderBy=startTime&alt=json
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/y3PwU7DMAwG4HufIgpXNtKuY7QneAEOExfGJmQl7ha1jqMkZULT3p0m4pDL78/5
+        5Vsl5Gidkb2QGiZ0BsID/qBLUT4uM0xwzrOj9JvGRTONIyF3L4qPsoA4E0H4zWa4tAOMGBMCvZ4J
+        7LTWTEUZjDpYnyy7LEs2ewMJS3OjmueV2q7q+kO1fdP123rddrtDcckSHthhhm+EwWp4esfr9yeH
+        sQDQGmPc81QIXx2G/9IB5intkZYDMcRl+lUJcVuekITpwqXcs599XsipdXPCLDdqCe6VOOWfbEIq
+        66fqXv0BmrzEVDMBAAA=
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - private, max-age=0, must-revalidate, no-transform
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Mon, 11 May 2026 04:30:09 GMT
+      Expires:
+      - Mon, 11 May 2026 04:30:09 GMT
+      Server:
+      - ESF
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 200
+      message: OK
+version: 1
