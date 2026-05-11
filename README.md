@@ -113,7 +113,7 @@ ospsd-team-05/
 
 5. **Run the Service Locally:**
    ```bash
-   uv run uvicorn calendar_client_service.app:app --reload --port 8000
+   uv run uvicorn calendar_client_service.app:app --reload --port 8000 --env-file .env
    ```
    Navigate to `http://localhost:8000/auth/login` to complete the OAuth flow and obtain a session cookie.
 
@@ -174,26 +174,37 @@ The project uses CircleCI for automated builds. The pipeline runs static analysi
 
 ## Deployment
 
-The service is configured to be automatically deployed to **Render** using a `Dockerfile`. The automated deployment is triggered via a CircleCI workflow webhook.
+The service is deployed to **Google Cloud Run** and provisioned with **Terraform** (IaC in `infra/`).
+Docker images are built and pushed to Google Artifact Registry by the CircleCI pipeline, which then
+deploys the new revision via `gcloud run deploy`.
 
-### 1. Platform and CI/CD Pipeline
-- **Platform:** Render (Docker Web Service)
-- **CI/CD Integration:** CircleCI triggers the deployment via a Render Deploy Hook URL but **only** on the `hw2` branch and **only** after all unit, integration, and E2E tests have passed.
-- **Base Image:** `ghcr.io/astral-sh/uv:python3.11-bookworm-slim`
+### Live Service
 
-### 2. Live URLs
-- **Base URL:** `https://ospsd-team-05.onrender.com`
-- **OpenAPI Spec:** `https://ospsd-team-05.onrender.com/openapi.json`
-- **Health Check Endpoint:** `https://ospsd-team-05.onrender.com/health` (Returns HTTP 200 OK)
+| Endpoint | URL |
+|---|---|
+| **Base URL** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app` |
+| **Health check** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/health` → `{"status": "ok"}` |
+| **OpenAPI spec** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/openapi.json` |
+| **Slack events** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/slack/events` |
 
-### 3. Required Environment Variables (Production)
-The deployed instance securely manages its configurations using Render Environment variables:
+### Platform & IaC
+- **Platform:** Google Cloud Run (region: `us-central1`)
+- **IaC:** Terraform (`infra/`). Provisions the Cloud Run service, a dedicated service account, Secret Manager secrets with per-secret IAM bindings, and observability roles (`roles/cloudtrace.agent`, `roles/monitoring.metricWriter`).
+- **CI/CD:** CircleCI — runs lint, type-check, unit + integration tests, then builds the Docker image and deploys to Cloud Run on the `hw3-calendar-task-api` branch.
+- **Base Image:** `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
+
+### Required Environment Variables (Production)
+
+Secrets are stored in **Google Secret Manager** and injected into Cloud Run containers at runtime via Terraform:
 
 | Variable | Description |
 |---|---|
-| `GOOGLE_OAUTH_CLIENT_ID` | External Provider OAuth 2.0 Client ID |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | External Provider OAuth 2.0 Client Secret |
-| `OAUTH_REDIRECT_URI` | External Provider OAuth 2.0 Redirect URI |
-| `GOOGLE_CALENDAR_ID` | Calendar ID to operate on (default: `primary`) |
+| `GEMINI_API_KEY` | Gemini / Google AI Studio API key |
+| `SLACK_BOT_TOKEN` | Slack Bot OAuth token (`xoxb-…`) |
+| `SLACK_SIGNING_SECRET` | Slack signing secret for request verification |
+| `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 Client ID from GCP Console |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 Client Secret from GCP Console |
+| `GCP_CREDENTIALS_JSON_BASE64` | Base64-encoded `credentials.json` |
+| `GCP_TOKEN_JSON_BASE64` | Base64-encoded `token.json` |
 
-_Note: Secrets are never stored in version control and are only managed securely via the Render Dashboard._
+_Note: Secrets are never stored in version control and are only managed via Google Secret Manager._

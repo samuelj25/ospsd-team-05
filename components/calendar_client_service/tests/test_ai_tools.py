@@ -17,12 +17,13 @@ def mock_calendar_client() -> MagicMock:
     return MagicMock(spec=GoogleCalendarClient)
 
 
-def create_mock_event(
+def create_mock_event( # noqa: PLR0913
     event_id: str,
     title: str,
     start_time: datetime,
     end_time: datetime,
     description: str = "",
+    location: str = "",
 ) -> MagicMock:
     """Create a mock event object for testing."""
     mock_event = MagicMock()
@@ -31,6 +32,7 @@ def create_mock_event(
     mock_event.start_time = start_time
     mock_event.end_time = end_time
     mock_event.description = description
+    mock_event.location = location
     return mock_event
 
 
@@ -62,13 +64,14 @@ def test_dispatch_tool_call_list_events(mock_calendar_client: MagicMock) -> None
 
 
 def test_dispatch_tool_call_create_event(mock_calendar_client: MagicMock) -> None:
-    """Test dispatching the create_event tool."""
+    """Test dispatching the create_event tool without a location."""
     mock_event = create_mock_event(
         event_id="456",
         title="New Event",
         start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
         end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
         description="New Desc",
+        location="",
     )
     mock_calendar_client.create_event.return_value = mock_event
 
@@ -76,7 +79,7 @@ def test_dispatch_tool_call_create_event(mock_calendar_client: MagicMock) -> Non
         "title": "New Event",
         "start": "2026-04-23T10:00:00Z",
         "end": "2026-04-23T11:00:00Z",
-        "description": "New Desc"
+        "description": "New Desc",
     }
     result = dispatch_tool_call("create_event", args, mock_calendar_client)
 
@@ -86,6 +89,45 @@ def test_dispatch_tool_call_create_event(mock_calendar_client: MagicMock) -> Non
     content = json.loads(result.content)
     assert content["id"] == "456"
     assert content["title"] == "New Event"
+    assert content["location"] == ""
+    mock_calendar_client.create_event.assert_called_once_with(
+        title="New Event",
+        start=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        location="",
+        description="New Desc",
+    )
+
+
+def test_dispatch_tool_call_create_event_with_location(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the create_event tool with an explicit location."""
+    mock_event = create_mock_event(
+        event_id="457",
+        title="Located Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        location="Room 42",
+    )
+    mock_calendar_client.create_event.return_value = mock_event
+
+    args = {
+        "title": "Located Event",
+        "start": "2026-04-23T10:00:00Z",
+        "end": "2026-04-23T11:00:00Z",
+        "location": "Room 42",
+    }
+    result = dispatch_tool_call("create_event", args, mock_calendar_client)
+
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert content["location"] == "Room 42"
+    mock_calendar_client.create_event.assert_called_once_with(
+        title="Located Event",
+        start=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        location="Room 42",
+        description="",
+    )
 
 
 def test_dispatch_tool_call_get_event(mock_calendar_client: MagicMock) -> None:

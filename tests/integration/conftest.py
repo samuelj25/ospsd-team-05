@@ -172,11 +172,11 @@ def live_app_client(
     os.environ.setdefault("E2E_SESSION_ID", "integration-test-session")
 
     from calendar_client_service.app import create_app  # noqa: PLC0415
-    from calendar_client_service.dependencies import get_slack_client  # noqa: PLC0415
+    from calendar_client_service.dependencies import get_chat_client  # noqa: PLC0415
     from fastapi.testclient import TestClient  # noqa: PLC0415
 
     app = create_app()
-    app.dependency_overrides[get_slack_client] = lambda: capture_chat
+    app.dependency_overrides[get_chat_client] = lambda: capture_chat
 
     yield TestClient(app, raise_server_exceptions=False), capture_chat
 

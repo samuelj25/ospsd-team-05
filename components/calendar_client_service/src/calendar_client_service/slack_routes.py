@@ -19,8 +19,8 @@ from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClien
 from calendar_client_service.ai_tools import CALENDAR_TOOLS, dispatch_tool_call
 from calendar_client_service.dependencies import (
     get_ai_client,
+    get_chat_client,
     get_oauth_manager,
-    get_slack_client,
 )
 
 logger = logging.getLogger(__name__)
@@ -182,7 +182,7 @@ async def slack_events(
     background_tasks: BackgroundTasks,
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
     ai_client: Annotated[AbstractAIClient, Depends(get_ai_client)],
-    chat_client: Annotated[ChatClient, Depends(get_slack_client)],
+    chat_client: Annotated[ChatClient, Depends(get_chat_client)],
 ) -> dict[str, str]:
     """
     Handle incoming Slack Events API payloads.

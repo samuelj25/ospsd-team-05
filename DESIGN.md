@@ -374,3 +374,129 @@ The adapter's compliance with the `calendar_client_api.Client` interface is enfo
 **Static enforcement:** `ServiceAdapterClient` extends `calendar_client_api.client.Client` (which is an `ABC`). Python raises `TypeError` at instantiation time if any abstract method is not implemented, so it is impossible to ship an incomplete adapter without a test (or even an import) catching it immediately.
 
 **Test-level enforcement:** The adapter integration test (`test_integration.py`) constructs a `ServiceAdapterClient`, calls `get_event` and `get_task` on it, and asserts that the returned objects satisfy the interface's property contract (`id`, `title`, `is_completed`, etc.). The unit tests in `test_adapter.py` similarly assert property values on the returned `AdapterEvent` and `AdapterTask` objects, confirming that wrapping an `EventResponse` / `TaskResponse` correctly exposes the expected interface properties. Together, these two layers — ABC instantiation and property-level assertions — ensure that `ServiceAdapterClient` is both structurally and behaviourally compliant with the `Client` contract.
+
+### AI Tool Dispatch Integration Tests (VCR Cassettes)
+
+`tests/integration/test_ai_tool_dispatch.py` exercises every calendar tool end-to-end
+against a **real `GoogleCalendarClient`** backed by live Google Calendar APIs.
+HTTP interactions are recorded as VCRpy cassette YAML files the first time
+(`--record-mode=new_episodes`) and replayed on every subsequent run — including in CI.
+
+Committed cassettes live in `tests/integration/cassettes/test_ai_tool_dispatch/`:
+
+| Cassette | Covers |
+|---|---|
+| `TestListEvents.test_returns_serialised_event_list.yaml` | `list_events` — create + list + verify id |
+| `TestListEvents.test_far_future_range_returns_empty_list.yaml` | `list_events` — empty range |
+| `TestCreateEvent.test_returns_id_and_title.yaml` | `create_event` — title/id in response |
+| `TestCreateEvent.test_description_defaults_to_empty_string.yaml` | `create_event` — description default |
+| `TestGetEvent.test_returns_correct_fields.yaml` | `get_event` — field round-trip |
+| `TestGetEvent.test_nonexistent_event_returns_not_found.yaml` | `get_event` — `not_found` error category |
+| `TestDeleteEvent.test_confirms_removal_and_event_is_gone.yaml` | `delete_event` — removal + verification |
+
+To re-record cassettes with fresh credentials:
+```bash
+uv run pytest tests/integration/test_ai_tool_dispatch.py --record-mode=new_episodes
+```
+
+### Tool Argument Validation (Pydantic Schemas)
+
+Each AI tool's argument payload is validated at the dispatch boundary using Pydantic
+`BaseModel` schemas defined in `ai_tools.py` (e.g. `_ListEventsArgs`, `_CreateEventArgs`).
+`model_validate(args)` is called before any field access so that:
+
+- **Required fields** that are absent produce a `ValidationError` → `{"error_category": "invalid_argument"}` `ToolResult` rather than a bare `KeyError`
+- **Type coercion** (e.g. ISO 8601 string → `datetime`) happens inside Pydantic rather than via raw `datetime.fromisoformat` calls, providing standardised error messages
+- **Optional fields** (e.g. `description`, `location`) have explicit defaults, avoiding `None` surprises downstream
+---
+
+## Cross-Vertical Integration
+
+### Chat Vertical Shared API
+
+This project consumes the Chat vertical's published shared API (`chat-client-api`) as
+a declared dependency. The dependency is a **git source** pointing to the other team's
+shared API repository:
+
+```toml
+# components/slack_chat_adapter/pyproject.toml
+[project]
+dependencies = ["chat-client-api", "slack-sdk>=3.27.0"]
+
+[tool.uv.sources]
+chat-client-api = { git = "https://github.com/HarshithKoriRaj/Shared-API" }
+```
+
+`SlackChatAdapter` implements the `ChatClient` ABC exported by `chat-client-api`,
+providing `send_message`, `get_channels`, `get_messages`, `get_message`, and
+`delete_message` over the Slack Web API.
+
+### Chat Backend Swappability
+
+The calendar service is designed so that the chat backend (Slack, Discord, etc.) can be
+swapped **without changing any route code**. The `get_chat_client()` factory in
+`calendar_client_service/dependencies.py` selects the backend at startup via the
+`CHAT_BACKEND` environment variable (default: `"slack"`):
+
+```python
+def get_chat_client() -> ChatClient:
+    backend = os.environ.get("CHAT_BACKEND", "slack")
+    if backend == "slack":
+        return SlackChatAdapter()
+    msg = f"Unknown CHAT_BACKEND: {backend!r}"
+    raise RuntimeError(msg)
+```
+
+All route handlers (`slack_routes.py`) depend on `get_chat_client` via FastAPI DI and
+only ever call `chat_client.send_message(channel_id, text)` through the abstract
+`ChatClient` interface. To add a Discord backend, only this factory needs to change —
+no route code is touched.
+
+---
+
+## Observability
+
+### OpenTelemetry → GCP Cloud Monitoring
+
+The service is instrumented with OpenTelemetry and exports metrics to Google Cloud
+Monitoring (and traces to Cloud Trace) when `GOOGLE_CLOUD_PROJECT` is set.
+Console exporters are used in local development.
+
+The `TelemetryMiddleware` in `app.py` records two instruments per request:
+
+| Instrument | Name | Unit |
+|---|---|---|
+| Counter | `custom.googleapis.com/http/request_count` | `1` |
+| Histogram | `custom.googleapis.com/http/request_latency` | `ms` |
+
+### Metric Labels
+
+Both instruments carry the following labels on every data point:
+
+| Label | Values | Purpose |
+|---|---|---|
+| `route` | `/events`, `/tasks`, `/slack/events`, `/health`, … | Per-endpoint breakdown |
+| `method` | `GET`, `POST`, `PUT`, `DELETE` | HTTP verb breakdown |
+| `status_code` | `200`, `404`, `500`, … | Exact HTTP status |
+| `status_category` | `success`, `domain_error`, `infra_error` | Error tier breakdown |
+
+### Error Category Breakdown
+
+`status_category` uses three tiers to separate business-logic errors from
+infrastructure failures — matching the rubric's requirement:
+
+| Category | HTTP Range | Meaning |
+|---|---|---|
+| `success` | 1xx – 3xx | Request handled correctly |
+| `domain_error` | 4xx | Expected business-logic error (not found, bad request, unauthorised) |
+| `infra_error` | 5xx | Unexpected server-side failure |
+
+This split allows dashboards and alerts to distinguish between user-facing errors
+(should be handled gracefully) and infrastructure problems (require on-call attention).
+
+### IAM Roles (provisioned via Terraform)
+
+| Role | Purpose |
+|---|---|
+| `roles/cloudtrace.agent` | Write traces to Cloud Trace |
+| `roles/monitoring.metricWriter` | Write custom metrics to Cloud Monitoring |

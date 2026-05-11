@@ -209,7 +209,7 @@ def test_slack_events_message() -> None:
          patch("calendar_client_service.slack_routes.BackgroundTasks.add_task") as mock_add_task, \
          patch("calendar_client_service.slack_routes.get_oauth_manager"), \
          patch("calendar_client_service.slack_routes.get_ai_client"), \
-         patch("calendar_client_service.slack_routes.get_slack_client"):
+         patch("calendar_client_service.slack_routes.get_chat_client"):
 
         # The overrides are set in the app.dependency_overrides directly
 

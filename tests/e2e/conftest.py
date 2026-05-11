@@ -115,6 +115,7 @@ def live_client() -> Generator[ServiceAdapterClient, None, None]:
         "E2E_SESSION_ID": _E2E_SESSION_ID,
         "GOOGLE_OAUTH_TOKEN_PATH": str(Path(token_path).resolve()),
         "SLACK_SIGNING_SECRET": os.environ.get("SLACK_SIGNING_SECRET", "e2e-test-secret"),
+        "OTEL_SDK_DISABLED": "true",
     }
 
     proc = subprocess.Popen(  # noqa: S603
@@ -129,8 +130,8 @@ def live_client() -> Generator[ServiceAdapterClient, None, None]:
             str(port),
         ],
         env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
     try:
