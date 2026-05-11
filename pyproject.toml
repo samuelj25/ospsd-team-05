@@ -9,6 +9,7 @@ dependencies = []
 [tool.uv.workspace]
 members = [
     "components/calendar_client_api",
+    "components/calendar_task_api",
     "components/google_calendar_client_impl",
     "components/calendar_client_service",
     "components/calendar_client_service_api_client",
@@ -43,6 +44,7 @@ explicit_package_bases = true
 exclude = ["^components/calendar_client_service_api_client/"]
 mypy_path = [
     "components/calendar_client_api/src",
+    "components/calendar_task_api/src",
     "components/google_calendar_client_impl/src",
     "components/calendar_client_service/src",
     "components/calendar_client_adapter/src",

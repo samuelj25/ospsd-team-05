@@ -25,7 +25,7 @@ from typing import Any
 from ospsd_calendar_api import CalendarClient
 from ospsd_calendar_api.models import Event
 
-from calendar_client_api.task import Task
+from calendar_task_api.task import Task
 
 
 class Client(CalendarClient):
@@ -37,10 +37,6 @@ class Client(CalendarClient):
     subclasses.  The six task methods below are additional abstract methods
     that are specific to Team-05's Google Tasks integration.
     """
-
-    # ------------------------------------------------------------------
-    # Task operations (Team-05 private extension — not in the common API)
-    # ------------------------------------------------------------------
 
     @abstractmethod
     def get_task(self, task_id: str) -> Task:
@@ -85,10 +81,6 @@ class Client(CalendarClient):
         """Mark a task as completed."""
         raise NotImplementedError
 
-    # ------------------------------------------------------------------
-    # Legacy helper (not in CalendarClient; retained for internal use)
-    # ------------------------------------------------------------------
-
     @abstractmethod
     def from_raw_data(self, raw_data: str) -> Event:
         """
@@ -99,9 +91,6 @@ class Client(CalendarClient):
         """
         raise NotImplementedError
 
-    # Keep the unused **kwargs override so that concrete subclasses that
-    # implement update_event with typed kwargs still satisfy mypy's strict-mode
-    # abstract-method check via CalendarClient.
     @abstractmethod
     def update_event(self, event_id: str, **kwargs: Any) -> Event:  # noqa: ANN401
         """Update fields on an existing event (see CalendarClient for full docs)."""

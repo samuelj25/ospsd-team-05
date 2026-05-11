@@ -8,7 +8,7 @@ import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-from calendar_client_api.exceptions import TaskNotFoundError
+from calendar_task_api.exceptions import TaskNotFoundError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError

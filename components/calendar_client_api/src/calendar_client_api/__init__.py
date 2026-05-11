@@ -1,27 +1,16 @@
 """
 Public export surface for ``calendar_client_api``.
 
-The shared types (``Event``, ``CalendarClient``, and the base exceptions) are
-re-exported from ``ospsd_calendar_api`` so that all existing imports of the
-form ``from calendar_client_api import Event`` continue to work without change.
+This package is a thin re-export shim over the shared cross-team vertical API
+defined in ``ospsd_calendar_api``.  It exists so that all imports of the form
+``from calendar_client_api import Event`` continue to work without change.
 
-Team-05 private extensions (``Task``, ``TaskNotFoundError``, and the extended
-``Client`` ABC with task methods) are also re-exported from here.
+Team-05 private extensions (Google Tasks support) live in the separate
+``calendar_task_api`` package and are intentionally not exported from here.
 """
 
-# ---------------------------------------------------------------------------
-# Re-exports from the shared cross-team common API
-# ---------------------------------------------------------------------------
 from ospsd_calendar_api import CalendarClient as CalendarClient
 from ospsd_calendar_api import Event as Event
 from ospsd_calendar_api.exceptions import CalendarError as CalendarError
 from ospsd_calendar_api.exceptions import CalendarOperationError as CalendarOperationError
 from ospsd_calendar_api.exceptions import EventNotFoundError as EventNotFoundError
-
-# ---------------------------------------------------------------------------
-# Team-05 private extensions (Google Tasks — not in the common API)
-# ---------------------------------------------------------------------------
-from calendar_client_api.client import Client as Client
-from calendar_client_api.client import get_client as get_client
-from calendar_client_api.exceptions import TaskNotFoundError as TaskNotFoundError
-from calendar_client_api.task import Task as Task

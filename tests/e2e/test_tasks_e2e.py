@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from calendar_client_adapter.adapter import ServiceAdapterClient
-from calendar_client_api import TaskNotFoundError
+from calendar_task_api import TaskNotFoundError
 
 
 @pytest.mark.e2e

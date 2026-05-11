@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "calendar-client-api",
+    "calendar-task-api",
     "calendar-client-service-api-client"
 ]
 
@@ -16,6 +17,7 @@ build-backend = "hatchling.build"
 [tool.uv.sources]
 calendar-client-api = { workspace = true }
 calendar-client-service-api-client = { workspace = true }
+calendar-task-api = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/calendar_client_adapter"]

@@ -23,6 +23,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import calendar_client_api
+import calendar_task_api
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from ospsd_calendar_api.models import Event
@@ -34,7 +35,7 @@ from google_calendar_client_impl.task_impl import GoogleCalendarTask
 _NOT_CONNECTED_MSG = "Client is not connected. Call connect() first."
 
 
-class GoogleCalendarClient(calendar_client_api.Client):
+class GoogleCalendarClient(calendar_task_api.Client):
     """
     Concrete implementation of the Client abstraction using Google Calendar API.
 
@@ -347,7 +348,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
     # Tasks — Team-05 private extension
     # ------------------------------------------------------------------
 
-    def get_task(self, task_id: str) -> calendar_client_api.Task:
+    def get_task(self, task_id: str) -> calendar_task_api.Task:
         """
         Return a task by ID.
 
@@ -369,13 +370,13 @@ class GoogleCalendarClient(calendar_client_api.Client):
             status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
             if status in (404, 410):
                 msg = f"Task {task_id} not found."
-                raise calendar_client_api.TaskNotFoundError(msg) from e
+                raise calendar_task_api.TaskNotFoundError(msg) from e
             msg = f"HTTP Error {status}: {e}"
             raise calendar_client_api.CalendarOperationError(msg) from e
 
         if response.get("deleted") is True or response.get("hidden") is True:
             msg = f"Task {task_id} not found (deleted/hidden)."
-            raise calendar_client_api.TaskNotFoundError(msg)
+            raise calendar_task_api.TaskNotFoundError(msg)
 
         return GoogleCalendarTask(response)
 
@@ -384,7 +385,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         title: str,
         due: datetime | None = None,
         description: str | None = None,
-    ) -> calendar_client_api.Task:
+    ) -> calendar_task_api.Task:
         """Create a new task."""
         svc = self._require_tasks_service()
         body: dict[str, str] = {
@@ -410,7 +411,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         due: datetime | None = None,
         description: str | None = None,
         is_completed: bool | None = None,
-    ) -> calendar_client_api.Task:
+    ) -> calendar_task_api.Task:
         """
         Update an existing task.
 
@@ -453,7 +454,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
             status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
             if status in (404, 410):
                 msg = f"Task {task_id} not found."
-                raise calendar_client_api.TaskNotFoundError(msg) from e
+                raise calendar_task_api.TaskNotFoundError(msg) from e
             msg = f"HTTP Error {status}: {e}"
             raise calendar_client_api.CalendarOperationError(msg) from e
 
@@ -461,7 +462,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         self,
         start_time: datetime,
         end_time: datetime,
-    ) -> Iterator[calendar_client_api.Task]:
+    ) -> Iterator[calendar_task_api.Task]:
         """
         Yield tasks in the provided time window.
 
@@ -519,7 +520,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         ).execute()
 
 
-def get_client_impl() -> calendar_client_api.Client:
+def get_client_impl() -> calendar_task_api.Client:
     """Return a configured GoogleCalendarClient instance."""
     return GoogleCalendarClient()
 
@@ -528,7 +529,7 @@ def register() -> None:
     """
     Register the Google Calendar client implementation.
 
-    Overwrites ``calendar_client_api.get_client`` to point to this module's
+    Overwrites ``calendar_task_api.get_client`` to point to this module's
     ``get_client_impl``, enabling dependency injection.
     """
-    calendar_client_api.get_client = get_client_impl
+    calendar_task_api.get_client = get_client_impl

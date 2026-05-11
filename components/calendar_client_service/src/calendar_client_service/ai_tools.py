@@ -8,11 +8,11 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ai_client_api.models import ToolDefinition, ToolResult
-from calendar_client_api.exceptions import TaskNotFoundError
+from calendar_task_api.exceptions import TaskNotFoundError
 from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 if TYPE_CHECKING:
-    from calendar_client_api.client import Client as CalendarClient
+    from calendar_task_api.client import Client as CalendarClient
 
 
 logger = logging.getLogger(__name__)

@@ -6,7 +6,7 @@ import os
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
-import calendar_client_api
+import calendar_task_api
 import pytest
 
 from google_calendar_client_impl import GoogleCalendarClient
@@ -200,7 +200,7 @@ def test_google_client_update_event_with_mock() -> None:
 # ---------------------------------------------------------------------------
 
 
-class MockTask(calendar_client_api.Task):
+class MockTask(calendar_task_api.Task):
     """Mock Task for testing CRUD methods."""
 
     def __init__(

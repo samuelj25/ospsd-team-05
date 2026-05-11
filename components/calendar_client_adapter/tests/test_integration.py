@@ -2,9 +2,9 @@ from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 from calendar_client_api.event import Event
-from calendar_client_api.task import Task
 from calendar_client_service.app import app
 from calendar_client_service.dependencies import get_calendar_client
+from calendar_task_api.task import Task
 from fastapi.testclient import TestClient
 
 from calendar_client_adapter.adapter import ServiceAdapterClient

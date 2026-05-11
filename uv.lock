@@ -14,6 +14,7 @@ members = [
     "calendar-client-api",
     "calendar-client-service",
     "calendar-client-service-api-client",
+    "calendar-task-api",
     "gemini-ai-client-impl",
     "google-calendar-client-impl",
     "ospsd-team-05",
@@ -104,12 +105,14 @@ source = { editable = "components/calendar_client_adapter" }
 dependencies = [
     { name = "calendar-client-api" },
     { name = "calendar-client-service-api-client" },
+    { name = "calendar-task-api" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "calendar-client-api", editable = "components/calendar_client_api" },
     { name = "calendar-client-service-api-client", editable = "components/calendar_client_service_api_client" },
+    { name = "calendar-task-api", editable = "components/calendar_task_api" },
 ]
 
 [[package]]
@@ -130,6 +133,7 @@ source = { editable = "components/calendar_client_service" }
 dependencies = [
     { name = "ai-client-api" },
     { name = "calendar-client-api" },
+    { name = "calendar-task-api" },
     { name = "fastapi" },
     { name = "gemini-ai-client-impl" },
     { name = "google-calendar-client-impl" },
@@ -152,6 +156,7 @@ test = [
 requires-dist = [
     { name = "ai-client-api", editable = "components/ai_client_api" },
     { name = "calendar-client-api", editable = "components/calendar_client_api" },
+    { name = "calendar-task-api", editable = "components/calendar_task_api" },
     { name = "fastapi", specifier = ">=0.115.0" },
     { name = "gemini-ai-client-impl", editable = "components/gemini_ai_client_impl" },
     { name = "google-calendar-client-impl", editable = "components/google_calendar_client_impl" },
@@ -183,6 +188,17 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.23.0,<0.29.0" },
     { name = "python-dateutil", specifier = ">=2.8.0" },
 ]
+
+[[package]]
+name = "calendar-task-api"
+version = "0.1.0"
+source = { editable = "components/calendar_task_api" }
+dependencies = [
+    { name = "calendar-client-api" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "calendar-client-api", editable = "components/calendar_client_api" }]
 
 [[package]]
 name = "certifi"
@@ -643,6 +659,7 @@ version = "0.1.0"
 source = { editable = "components/google_calendar_client_impl" }
 dependencies = [
     { name = "calendar-client-api" },
+    { name = "calendar-task-api" },
     { name = "google-api-python-client" },
     { name = "google-auth" },
     { name = "google-auth-oauthlib" },
@@ -658,6 +675,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "calendar-client-api", editable = "components/calendar_client_api" },
+    { name = "calendar-task-api", editable = "components/calendar_task_api" },
     { name = "google-api-python-client", specifier = ">=2.177.0" },
     { name = "google-auth", specifier = ">=2.40.3" },
     { name = "google-auth-oauthlib", specifier = ">=1.2.2" },

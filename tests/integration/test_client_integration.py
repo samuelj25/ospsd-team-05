@@ -3,7 +3,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from calendar_client_api.exceptions import TaskNotFoundError
+from calendar_task_api.exceptions import TaskNotFoundError
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 from google_calendar_client_impl.task_impl import GoogleCalendarTask
 from ospsd_calendar_api.exceptions import EventNotFoundError

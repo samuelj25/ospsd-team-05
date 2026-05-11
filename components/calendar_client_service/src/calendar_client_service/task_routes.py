@@ -12,7 +12,7 @@ from calendar_client_service.dependencies import get_calendar_client
 from calendar_client_service.models import TaskCreate, TaskResponse, TaskUpdate
 
 if TYPE_CHECKING:
-    from calendar_client_api.task import Task
+    from calendar_task_api.task import Task
 
 
 def _to_task_response(t: Task) -> TaskResponse:
