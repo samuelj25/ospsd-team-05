@@ -1,0 +1,172 @@
+interactions:
+- request:
+    body: '{"summary": "[VCR] Delete Test", "start": {"dateTime": "2026-05-12T10:00:00+00:00",
+      "timeZone": "UTC"}, "end": {"dateTime": "2026-05-12T11:00:00+00:00", "timeZone":
+      "UTC"}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '172'
+      content-type:
+      - application/json
+      user-agent:
+      - (gzip)
+    method: POST
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events?alt=json
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/6WSX2vbMBTF3/0pjPe6JIpix45hrBDT0rGldDhN53UPinXtaJGsTJaa/qHffZLS
+        UPoSBgO/SPenc8+9Ps9BGG1ZR6M8jGrCoaNEfYB76HT00ZZAk9aV7qJJkkxncZpkOMnSNI3vIg8w
+        /9JA1uEs5pK0E8mFEQ1e0zjTWeyhXhNtet9Cdg1TAqi/32jBv7Ju6yobrXd9Phrt9/thK2XLYVhL
+        MTp6GnlPn4HRT3S1jNe/L+PFxcP9j1X9tMYPmq7G4pv4sl0UG3RVXLeVaFElzlV1u0DV6lxfXyDf
+        sVZANHjPGOHpACWD8bhEcY5neTIeIoQqz5kdPcXh2eTA9UYIoh4d9/Nm/v1XWAAHDWEJvX5rKJUF
+        noPQ7lMQxh3dbOKGbC0FRJy17taN655YUeCNZbQyEIQvTkWqlnTsCf5Xx/4IpY8absKSCXg3JC7R
+        NEfIfgM7LUIHJW2xSnYeXZbz6FUOfG5OiqX/LMbmhC8vi9NxOnuLxmH/8MdAVzst5M4KhA0zqP7o
+        y/RQQEMM1+834eNUPu68C/pKBC/BX9Uh2ssQAwAA
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Mon, 11 May 2026 04:29:51 GMT
+      ETag:
+      - '"3556947582587774"'
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Pragma:
+      - no-cache
+      Server:
+      - ESF
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '0'
+      user-agent:
+      - (gzip)
+    method: DELETE
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events/ue8n284loag3olmumf2bd48t84
+  response:
+    body:
+      string: ''
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Length:
+      - '0'
+      Content-Type:
+      - text/html
+      Date:
+      - Mon, 11 May 2026 04:29:51 GMT
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Pragma:
+      - no-cache
+      Server:
+      - ESF
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 204
+      message: No Content
+- request:
+    body: null
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '0'
+      user-agent:
+      - (gzip)
+    method: GET
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events/ue8n284loag3olmumf2bd48t84?alt=json
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/6WSXWvbMBSG7/0rjHe7JLIrJ7ZhrBDT0rGldDjL5nUXinXseJHsTD5q+kH/+ySl
+        ofQmDAa6kc5z3vOh98nzg23b8SDzg4oJ6DhT7+AOOgzemxAga2zoNjiL42lKZ3ESpSklIb0NHNC6
+        TA1JFyVU9Kw564XUso7WnCaYUAcNyFAPhxJdBUIAd+8blOJz221tZIO4G7LJZL/fj5u+bwSMq15O
+        jj1NXE8foeUf+GpJ17+v6OLy/u7HqnpcR/fIV6H8Ij9tF/mGXOc3TSkbUsoLVX5fkHJ1gTeXxFWs
+        FDAE13NEoumIxKMwLAjNojSLwzEhpHSc3vFTHE1nB27QUjL1YLmf3+Zff/k5CEDwCxjwtWCvDPDk
+        +WafkrXC0vWG1mxrKGDyvLGvdlybYkRB1IZBpcHzn61KrxrWtY/wvzrmIxQeNeyERSvhzZBRQaYZ
+        IeaMzLSEHJTQYGXfOXRZzIMXOXC+OSk2+2exds7E8io/bafzV2sc9g9/NBhLmazQ3hVIY2ZQw7Ev
+        PUAONdMC327C2al42Lku+AvhPXt/AdZLNvkQAwAA
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - private, max-age=0, must-revalidate, no-transform
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Mon, 11 May 2026 04:29:51 GMT
+      ETag:
+      - '"3556947582994014"'
+      Expires:
+      - Mon, 11 May 2026 04:29:51 GMT
+      Server:
+      - ESF
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 200
+      message: OK
+version: 1

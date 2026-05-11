@@ -12,7 +12,7 @@ from calendar_client_api.exceptions import TaskNotFoundError
 from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 if TYPE_CHECKING:
-    from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
+    from calendar_client_api.client import Client as CalendarClient
 
 
 logger = logging.getLogger(__name__)
@@ -73,6 +73,34 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
             "type": "object",
             "properties": {
                 "event_id": {"type": "string", "description": "The event ID."},
+            },
+            "required": ["event_id"],
+        },
+    ),
+    ToolDefinition(
+        name="update_event",
+        description="Update a calendar event by its ID.",
+        parameters={
+            "type": "object",
+            "properties": {
+                "event_id": {"type": "string", "description": "The event ID to update."},
+                "title": {"type": "string", "description": "Optional new event title."},
+                "start": {
+                    "type": "string",
+                    "description": "Optional new event start time in ISO 8601 format.",
+                },
+                "end": {
+                    "type": "string",
+                    "description": "Optional new event end time in ISO 8601 format.",
+                },
+                "location": {
+                    "type": "string",
+                    "description": "Optional new event location.",
+                },
+                "description": {
+                    "type": "string",
+                    "description": "Optional new event description.",
+                },
             },
             "required": ["event_id"],
         },
@@ -205,7 +233,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
 def _dispatch_event_tool(
     tool_name: str,
     args: dict[str, Any],
-    client: GoogleCalendarClient,
+    client: CalendarClient,
 ) -> ToolResult | None:
     if tool_name == "list_events":
         start = datetime.fromisoformat(args["start"]).astimezone(UTC)
@@ -246,7 +274,7 @@ _TASK_COMPLETION_TOOLS = {"delete_task", "mark_task_completed"}
 def _dispatch_task_tool(
     tool_name: str,
     args: dict[str, Any],
-    client: GoogleCalendarClient,
+    client: CalendarClient,
 ) -> ToolResult | None:
     if tool_name == "list_tasks":
         start = datetime.fromisoformat(args["start"]).astimezone(UTC)
@@ -319,7 +347,7 @@ def _dispatch_task_tool(
 def dispatch_tool_call(
     tool_name: str,
     args: dict[str, Any],
-    client: GoogleCalendarClient,
+    client: CalendarClient,
 ) -> ToolResult:
     """
     Execute a Gemini-requested tool call against the calendar client.
@@ -327,7 +355,7 @@ def dispatch_tool_call(
     Args:
         tool_name: Name of the tool Gemini wants to call.
         args: Arguments the model supplied (already parsed from proto).
-        client: Authenticated :class:`GoogleCalendarClient` to act on.
+        client: Calendar client instance conforming to :class:`calendar_client_api.Client`.
 
     Returns:
         A :class:`ToolResult` with the serialised response or error message.

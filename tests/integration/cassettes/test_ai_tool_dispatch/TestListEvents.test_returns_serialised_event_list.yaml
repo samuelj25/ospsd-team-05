@@ -1,0 +1,172 @@
+interactions:
+- request:
+    body: '{"summary": "[VCR] List Test Event", "start": {"dateTime": "2026-05-12T10:00:00+00:00",
+      "timeZone": "UTC"}, "end": {"dateTime": "2026-05-12T11:00:00+00:00", "timeZone":
+      "UTC"}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '176'
+      content-type:
+      - application/json
+      user-agent:
+      - (gzip)
+    method: POST
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events?alt=json
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/6WSb0/bMBDG3+dTRNlb2l7SJF0iTSAViibBUKfwRx57YZKLaxLHxXHoCuK7z3Yp
+        Ey+GJk2KLMX3u+eeO9+z5wcN76og94OStthVVH3CR+x0cGBCqCmzodtgmiRpFs+SWRqF4TSD28AB
+        3GXiA2OPpaQNlKEStYzTRg5ZrTB2UK+pHnpXQnY1VwIrd7/Soj3jXWMjK63XfT6ZbDabMZOStTgu
+        pZjsPU2cp0Pk1Rdys+jIlNzfRQt1fnr+qxShuHtaRjTKwotrsiXFkhHBgIiFIjffgFwv9PIUXMVS
+        IdXoPEcQpSNIRmFYQJxHWR7PxgBAHDesq79zn8chJDuuH4Sgamu5H1fz7z/9M95rv0BznLwN0RWV
+        ykDPnm+GJShvbUa9imvaGBapOGL21rZsU4wwtrVhtBrQ81+silSMdvwJ/1fHPIbSew3bZcEFvms0
+        KiDNAcw3Mh0D7JS0wYjsHHpZzINXOXS786HY7J/F+Jy2l1+PP16poz/rsXsDfBiwK60W2H+Fwiw0
+        qn7va+jxGGs6tPr9JNxKFdu1c1G9Et6L9xuULVJeFAMAAA==
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Mon, 11 May 2026 04:29:48 GMT
+      ETag:
+      - '"3556947576211390"'
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Pragma:
+      - no-cache
+      Server:
+      - ESF
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '0'
+      user-agent:
+      - (gzip)
+    method: GET
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events?timeMin=2026-05-12T10%3A00%3A00%2B00%3A00&timeMax=2026-05-12T13%3A00%3A00%2B00%3A00&singleEvents=true&orderBy=startTime&alt=json
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/61T72/aMBD9zl8RZV8HOD+ABmlaJzqqSW0nULp2bqvJDZfgEtup7ZTRiv99tgkC
+        tK3bpEnJl7vnd3fv3r20PH9B+cwfen5GSuAzIt/AE3Ct/LcmB5oUNnfrV1GUqzxQDwxEcoTEre8A
+        qmaMyJXF5PM4JwtQGgg7LhihZScTzKFmoDJJK00Ft0gXq6sZ0eAqhyjst1GvHQQpiodhMoyPOgHq
+        YYfTlAEWHCzwAwNJM9K9gOW3r0IuHIBkGSg1FaWDiCUH2RTNSV3qKTAzIEhlsjctz3sxv+cz0HPh
+        ileiqiv7wEYprzVYZIRMYN3y7iwT1cAOn/9as4ZlJ1rU6/WTeNAb9MMgiBK0Ec1AqHsNj0XxlAmy
+        QFkgWS7i/kLUSS4hbmBKE10rV0jwnEpm9Npk5pqVZ5QvbG6udaWG3e5yuewUQhQlWOG72966rrf3
+        QGfv8PWY4wg/3IdjeX56/j1jAbt/noQkTILPV3iF00mBWYEwG0t8fYHw1VhPTlFTM5Pw+40NOggh
+        3CD/crfegX9uvoymd94ZVdpLjYu8j3uSutJCGpjT30hn/fW66xw9lLlBaVmDDaw3bEIWhNNn+F98
+        Zk1S77js7Klx7cH4YYr6Q4TM1zY6ILRl3Lf3ZTry92jBeewPpIN/JKUjUl5+Onndfsc7G233BI81
+        8Mwyok1E7t1V02Ot4GRzdD9r5EyYrirXU3OafnNjrXXrB4z9aRKJBAAA
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - private, max-age=0, must-revalidate, no-transform
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Mon, 11 May 2026 04:29:48 GMT
+      Expires:
+      - Mon, 11 May 2026 04:29:48 GMT
+      Server:
+      - ESF
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 200
+      message: OK
+- request:
+    body: null
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '0'
+      user-agent:
+      - (gzip)
+    method: DELETE
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events/eqggvcoak0c1rmfo46kou9fre4
+  response:
+    body:
+      string: ''
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Length:
+      - '0'
+      Content-Type:
+      - text/html
+      Date:
+      - Mon, 11 May 2026 04:29:48 GMT
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Pragma:
+      - no-cache
+      Server:
+      - ESF
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 204
+      message: No Content
+version: 1

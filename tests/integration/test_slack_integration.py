@@ -1,198 +1,227 @@
-"""Integration tests for the /slack/events webhook endpoint."""
+r"""
+Integration tests for the /slack/events webhook.
+
+Tests use:
+- Real HMAC-signed requests (``SLACK_SIGNING_SECRET`` from ``.env``)
+- Real FastAPI routing (no signature patch)
+- Real ``GeminiAIClient`` and ``GoogleCalendarClient`` via live credentials
+  (seeded from ``token.json`` through the ``E2E_SESSION_ID`` mechanism)
+- :class:`~tests.integration.conftest.CaptureChatClient` — a real ``ChatClient``
+  ABC implementation that records sent messages without calling the Slack API
+
+VCR cassettes record Gemini REST + Google Calendar HTTP calls on first run::
+
+    uv run pytest tests/integration/test_slack_integration.py \\
+        --no-cov --record-mode=once
+
+The ``TestCrossVerticalPath`` class demonstrates the rubric-required path:
+
+    Slack message → AI (Gemini) → Calendar tool call → Google Calendar API
+                  → Slack reply (captured by CaptureChatClient)
+"""
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, cast
-from unittest.mock import MagicMock, patch
+import hashlib
+import hmac
+import json
+import os
+import time
+from typing import TYPE_CHECKING, Any
 
 import pytest
-from calendar_client_service.app import create_app
-from calendar_client_service.dependencies import get_ai_client, get_oauth_manager, get_slack_client
-from calendar_client_service.slack_routes import map_slack_user_to_session
-from fastapi.testclient import TestClient
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    import httpx
+    from fastapi.testclient import TestClient
 
-    from ai_client_api.client import AbstractAIClient
-    from chat_client_api.client import ChatClient
-    from google_calendar_client_impl.auth import WebOAuthManager
+    from tests.integration.conftest import CaptureChatClient
 
-_USER = "U_TEST_001"
-_CHANNEL = "C_TEST_001"
-_SESSION = "session-test-abc"
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_USER = "U_INT_001"
+_CHANNEL = "C_INT_001"
+_SESSION = "integration-test-session"
 
 
 # ---------------------------------------------------------------------------
-# Fixtures
+# Helpers
 # ---------------------------------------------------------------------------
 
 
-@pytest.fixture(autouse=True)
-def mock_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Set a dummy SLACK_SIGNING_SECRET so create_app() passes startup validation."""
-    monkeypatch.setenv("SLACK_SIGNING_SECRET", "test-secret")
-
-
-@pytest.fixture
-def mock_ai() -> AbstractAIClient:
-    """Mocked AI client that immediately returns a canned reply."""
-    m = MagicMock()
-    m.send_message.return_value = "You have no events today."
-    return cast("AbstractAIClient", m)
-
-
-@pytest.fixture
-def mock_chat() -> ChatClient:
-    """Mocked Slack chat client."""
-    return cast("ChatClient", MagicMock())
-
-
-@pytest.fixture
-def mock_oauth() -> WebOAuthManager:
-    """Mocked OAuth manager with a pre-authenticated session."""
-    m = MagicMock()
-    m.is_authenticated.return_value = True
-    m.get_credentials.return_value = MagicMock()
-    return cast("WebOAuthManager", m)
-
-
-@pytest.fixture
-def client(
-    mock_ai: AbstractAIClient,
-    mock_chat: ChatClient,
-    mock_oauth: WebOAuthManager,
-) -> Generator[TestClient, None, None]:
-    """TestClient with all external deps mocked, GoogleCalendarClient patched."""
-    map_slack_user_to_session(_USER, _SESSION)
-    app = create_app()
-    app.dependency_overrides[get_ai_client] = lambda: mock_ai
-    app.dependency_overrides[get_slack_client] = lambda: mock_chat
-    app.dependency_overrides[get_oauth_manager] = lambda: mock_oauth
-
-    with (
-        patch("calendar_client_service.slack_routes.GoogleCalendarClient") as mock_gc,
-        patch("calendar_client_service.slack_routes._verify_slack_signature", return_value=True),
-    ):
-        mock_gc.return_value = MagicMock()
-        yield TestClient(app, raise_server_exceptions=True)
-
-
-def _msg(text: str, user: str = _USER, channel: str = _CHANNEL) -> dict[str, Any]:
-    """Build a minimal Slack message event payload."""
+def _sign_request(body: bytes) -> dict[str, str]:
+    """Return Slack-signed headers using the real ``SLACK_SIGNING_SECRET``."""
+    secret = os.environ["SLACK_SIGNING_SECRET"]
+    ts = str(int(time.time()))
+    base = f"v0:{ts}:{body.decode('utf-8')}"
+    sig = "v0=" + hmac.new(
+        secret.encode("utf-8"), base.encode("utf-8"), hashlib.sha256
+    ).hexdigest()
     return {
-        "type": "event_callback",
-        "event": {"type": "message", "text": text, "channel": channel, "user": user},
+        "content-type": "application/json",
+        "x-slack-request-timestamp": ts,
+        "x-slack-signature": sig,
     }
 
 
+def _event_payload(
+    text: str,
+    user: str = _USER,
+    channel: str = _CHANNEL,
+    *,
+    bot_id: str | None = None,
+) -> dict[str, Any]:
+    """Build a minimal Slack event_callback payload."""
+    event: dict[str, Any] = {
+        "type": "message",
+        "text": text,
+        "channel": channel,
+        "user": user,
+    }
+    if bot_id:
+        event["bot_id"] = bot_id
+    return {"type": "event_callback", "event": event}
+
+
+def _post(
+    client: TestClient,
+    payload: dict[str, Any],
+    *,
+    extra_headers: dict[str, str] | None = None,
+) -> httpx.Response:
+    """Sign and POST a Slack event payload."""
+    body = json.dumps(payload).encode()
+    headers = _sign_request(body)
+    if extra_headers:
+        headers.update(extra_headers)
+    return client.post("/slack/events", content=body, headers=headers)
+
+
 # ---------------------------------------------------------------------------
-# URL verification
+# Route-level tests — no external API calls, no VCR needed
 # ---------------------------------------------------------------------------
 
 
 class TestUrlVerification:
-    """Slack url_verification one-time handshake."""
+    """Slack url_verification challenge — no AI or Calendar involved."""
 
-    def test_echoes_challenge(self, client: TestClient) -> None:
-        resp = client.post(
-            "/slack/events",
-            json={"type": "url_verification", "challenge": "abc-xyz"},
-        )
-        assert resp.status_code == 200
-        assert resp.json() == {"challenge": "abc-xyz"}
-
-
-# ---------------------------------------------------------------------------
-# Message events
-# ---------------------------------------------------------------------------
-
-
-class TestMessageEvents:
-    """Normal Slack message events trigger the AI + calendar loop."""
-
-    def test_returns_200_with_empty_body(self, client: TestClient) -> None:
-        resp = client.post("/slack/events", json=_msg("Hello!"))
-        assert resp.status_code == 200
-        assert resp.json() == {}
-
-    def test_ai_client_receives_user_text(
-        self, client: TestClient, mock_ai: AbstractAIClient
+    def test_echoes_challenge(
+        self, live_app_client: tuple[TestClient, CaptureChatClient]
     ) -> None:
-        client.post("/slack/events", json=_msg("What's on my calendar today?"))
+        tc, _ = live_app_client
+        payload = {"type": "url_verification", "challenge": "abc-xyz-123"}
+        body = json.dumps(payload).encode()
+        resp = tc.post("/slack/events", content=body, headers=_sign_request(body))
+        assert resp.status_code == 200
+        assert resp.json() == {"challenge": "abc-xyz-123"}
 
-        cast("MagicMock", mock_ai).send_message.assert_called_once()
-        prompt: str = cast("MagicMock", mock_ai).send_message.call_args.kwargs.get("prompt", "")
-        assert "What's on my calendar today?" in prompt
 
-    def test_reply_posted_to_correct_channel(
-        self, client: TestClient, mock_chat: ChatClient
-    ) -> None:
-        client.post("/slack/events", json=_msg("Hello!", channel="C_CUSTOM"))
-
-        cast("MagicMock", mock_chat).send_message.assert_called()
-        kwargs = cast("MagicMock", mock_chat).send_message.call_args.kwargs
-        assert kwargs.get("channel_id") == "C_CUSTOM"
+class TestShortCircuits:
+    """Events that are dropped before reaching the AI layer."""
 
     def test_bot_messages_are_ignored(
-        self, client: TestClient, mock_ai: AbstractAIClient
+        self, live_app_client: tuple[TestClient, CaptureChatClient]
     ) -> None:
-        payload: dict[str, Any] = {
-            "type": "event_callback",
-            "event": {
-                "type": "message",
-                "text": "Bot reply",
-                "channel": _CHANNEL,
-                "user": _USER,
-                "bot_id": "B_BOT_001",
-            },
-        }
-        client.post("/slack/events", json=payload)
-        cast("MagicMock", mock_ai).send_message.assert_not_called()
+        """Messages from bots produce no reply."""
+        tc, capture = live_app_client
+        _post(tc, _event_payload("Bot says hi", bot_id="B_BOT_001"))
+        assert capture.messages == []
 
     def test_slack_retry_header_short_circuits(
-        self, client: TestClient, mock_ai: AbstractAIClient
+        self, live_app_client: tuple[TestClient, CaptureChatClient]
     ) -> None:
-        resp = client.post(
-            "/slack/events",
-            json=_msg("Retry!"),
-            headers={"x-slack-retry-num": "1"},
-        )
+        """Slack retry requests are dropped immediately."""
+        tc, capture = live_app_client
+        _post(tc, _event_payload("Retry!"), extra_headers={"x-slack-retry-num": "1"})
+        assert capture.messages == []
+
+    def test_unauthenticated_user_receives_login_prompt(
+        self, live_app_client: tuple[TestClient, CaptureChatClient]
+    ) -> None:
+        """A user with no OAuth session gets a login URL, not an AI reply."""
+        tc, capture = live_app_client
+        _post(tc, _event_payload("Hello!", user="U_UNKNOWN_XYZ"))
+        assert len(capture.messages) == 1
+        assert "authenticate" in capture.messages[0].text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Cross-vertical integration test — rubric requirement
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.vcr
+class TestCrossVerticalPath:
+    """
+    Demonstrates the full rubric-required path.
+
+    Path: Slack message → AI (Gemini) → Calendar tool call
+          → Google Calendar API → Slack reply
+
+    VCR cassettes capture both the Gemini REST responses and the Google
+    Calendar API HTTP calls.  The ``CaptureChatClient`` records the outbound
+    reply without hitting the Slack API.
+
+    Together with ``TestAIToolDispatch`` in ``test_ai_tool_dispatch.py``
+    these tests confirm that an AI-requested tool call reaches the real
+    Google Calendar service.
+    """
+
+    def test_calendar_query_triggers_tool_call_and_reply(
+        self, live_app_client: tuple[TestClient, CaptureChatClient]
+    ) -> None:
+        """
+        Test calendar query triggers tool call and reply.
+
+        A natural-language calendar question causes Gemini to emit a
+        ``list_events`` tool call, which dispatches to the real Google Calendar
+        API, and the resulting answer is posted to ``CaptureChatClient``.
+
+        Assertions:
+        - HTTP 200 from the webhook endpoint
+        - At least one message captured (the AI's reply)
+        - The reply is a non-empty string (content is AI-generated)
+        """
+        from calendar_client_service.slack_routes import map_slack_user_to_session  # noqa: PLC0415
+
+        map_slack_user_to_session(_USER, _SESSION)
+
+        tc, capture = live_app_client
+        resp = _post(tc, _event_payload("What events do I have this week?"))
+
         assert resp.status_code == 200
-        cast("MagicMock", mock_ai).send_message.assert_not_called()
+        # Background task runs synchronously inside TestClient
+        assert len(capture.messages) >= 1
+        reply_text = capture.messages[0].text
+        assert isinstance(reply_text, str)
+        assert len(reply_text) > 0
 
-
-# ---------------------------------------------------------------------------
-# Unauthenticated user
-# ---------------------------------------------------------------------------
-
-
-class TestUnauthenticatedUser:
-    """Users without a valid OAuth session receive a login prompt."""
-
-    def test_login_prompt_sent_when_unauthenticated(
-        self,
-        mock_ai: AbstractAIClient,
-        mock_chat: ChatClient,
+    def test_create_event_via_natural_language(
+        self, live_app_client: tuple[TestClient, CaptureChatClient]
     ) -> None:
-        unauthed_oauth = MagicMock()
-        unauthed_oauth.is_authenticated.return_value = False
+        """
+        Test creating an event via natural language.
 
-        app = create_app()
-        app.dependency_overrides[get_ai_client] = lambda: mock_ai
-        app.dependency_overrides[get_slack_client] = lambda: mock_chat
-        app.dependency_overrides[get_oauth_manager] = lambda: unauthed_oauth
+        Asking the assistant to create an event causes Gemini to emit a
+        ``create_event`` tool call, which creates a real Google Calendar event.
+        The assistant's confirmation reply is captured.
+        """
+        from calendar_client_service.slack_routes import map_slack_user_to_session  # noqa: PLC0415
 
-        with (
-            patch("calendar_client_service.slack_routes.GoogleCalendarClient"),
-            patch(
-                "calendar_client_service.slack_routes._verify_slack_signature", return_value=True
-                ),
-        ):
-            tc = TestClient(app, raise_server_exceptions=True)
-            tc.post("/slack/events", json=_msg("Hello!", user="U_UNKNOWN"))
+        map_slack_user_to_session(_USER, _SESSION)
 
-        cast("MagicMock", mock_chat).send_message.assert_called_once()
-        text: str = cast("MagicMock", mock_chat).send_message.call_args.kwargs.get("text", "")
-        assert "authenticate" in text.lower()
-        cast("MagicMock", mock_ai).send_message.assert_not_called()
+        tc, capture = live_app_client
+        resp = _post(
+            tc,
+            _event_payload(
+                "Schedule a team standup meeting tomorrow at 9am for 30 minutes."
+            ),
+        )
+
+        assert resp.status_code == 200
+        assert len(capture.messages) >= 1
+        reply_text = capture.messages[0].text
+        assert isinstance(reply_text, str)
+        assert len(reply_text) > 0

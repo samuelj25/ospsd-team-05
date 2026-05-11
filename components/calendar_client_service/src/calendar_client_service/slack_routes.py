@@ -116,8 +116,11 @@ async def _handle_message_event(
     # Check authentication
     session_id = _slack_user_sessions.get(user_id)
     if not session_id or not oauth_manager.is_authenticated(session_id):
-        # Allow fallback to E2E session for tests
-        session_id = os.environ.get("E2E_SESSION_ID")
+        # Allow fallback to E2E session in the test environment only.
+        # This branch is intentionally gated so that a leaked CI secret cannot
+        # bypass per-user auth in production.
+        if os.environ.get("ENV") == "test":
+            session_id = os.environ.get("E2E_SESSION_ID")
         if not session_id or not oauth_manager.is_authenticated(session_id):
             login_url = f"{base_url}/auth/login?slack_user_id={user_id}"
             chat_client.send_message(
