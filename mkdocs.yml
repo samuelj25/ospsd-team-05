@@ -1,7 +1,6 @@
 site_name: Google Calendar Client
 theme:
   name: material
-
 plugins:
   - mkdocstrings:
       handlers:
@@ -11,9 +10,14 @@ plugins:
             - components/google_calendar_client_impl/src
             - components/calendar_client_service/src
             - components/calendar_client_adapter/src
-
+            - components/slack_chat_adapter/src
 nav:
   - Home: index.md
+  - HW3:
+    - AI Integration: hw3_ai_integration.md
+    - Cross-Vertical Integration: hw3_cross_vertical.md
+    - Shared Calendar Contract: hw3_shared_contract.md
+    - Observability: hw3_observability.md
   - Components:
     - Calendar Client API: calendar_client_api.md
     - Google Calendar Implementation: google_calendar_client_impl.md
@@ -22,3 +26,4 @@ nav:
     - Calendar Client Service: calendar_client_service.md
     - Service API Client: calendar_client_service_api_client.md
     - Calendar Client Adapter: calendar_client_adapter.md
+    - Slack Chat Adapter: slack_chat_adapter.md

@@ -3,7 +3,7 @@
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://python.org)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 
-A modular, type-safe Python system for interacting with Google Calendar and Google Tasks. Built with a strict separation of concerns, dependency injection, a deployed HTTP service, and a comprehensive automated toolchain.
+A modular, type-safe Python system for interacting with Google Calendar and Google Tasks, extended in HW3 with a Gemini-powered AI assistant, Slack integration, cross-vertical chat support, and full observability via OpenTelemetry and Google Cloud Monitoring.
 
 ## Team
 
@@ -15,196 +15,211 @@ A modular, type-safe Python system for interacting with Google Calendar and Goog
 - **Dhruv Topiwala** (`dmt9779`)
 - **Vijay Gottipati** (`vg2571`)
 
+---
+
+## HW3 Architecture Overview
+
+HW3 extends the HW2 service-oriented calendar architecture with three major additions:
+
+### 1. AI Integration (Gemini Tool-Calling Agent)
+
+The service now embeds a Gemini-powered conversational AI agent that can answer natural-language questions about a user's calendar and tasks. The agent is exposed via a `/slack/events` endpoint and dispatches structured tool calls to the existing `GoogleCalendarClient` methods.
+
+- **Model:** Gemini (via `GEMINI_API_KEY`)
+- **Tool dispatch:** Each calendar operation (`list_events`, `create_event`, `get_event`, `delete_event`) is registered as a Gemini function-call tool. The agent selects the appropriate tool, the service validates arguments with Pydantic schemas, and results are serialised back to the model.
+- **Conversation history:** Per-user conversation turns are stored in-process (see state management note in DESIGN.md).
+- **Error handling:** Tool errors produce structured `ToolResult` responses with `error_category` fields (`invalid_argument`, `not_found`, `infra_error`) rather than bare exceptions.
+
+### 2. Cross-Vertical Integration (Chat / Slack)
+
+The calendar service integrates with the **Chat vertical's shared `chat-client-api`** interface, making the chat backend swappable at runtime.
+
+- **Shared interface consumed:** `chat-client-api` from `github.com/HarshithKoriRaj/Shared-API`
+- **Adapter implemented:** `SlackChatAdapter` implements the `ChatClient` ABC, delegating to the Slack Web API.
+- **Swappability:** The `get_chat_client()` factory in `dependencies.py` selects the backend via the `CHAT_BACKEND` environment variable (default: `"slack"`). No route code changes when the backend is swapped.
+- **Shared calendar interface:** Our `calendar_client_api` now subclasses `ospsd_calendar_api.CalendarClient` from the cross-team shared API at `github.com/DeMoliT1on/ospsd-calendar-api` (agreed upon by Teams 5, 11, 12). The contract covers the five core event methods and a minimal `Event` dataclass. Fields like `attendees` and `tasks` were deliberately excluded because Google and Outlook model them incompatibly — see DESIGN.md for the full rationale.
+
+### 3. Observability (OpenTelemetry → GCP Cloud Monitoring)
+
+Every HTTP request is instrumented via `TelemetryMiddleware` in `app.py`:
+
+| Instrument | Metric Name | Unit |
+|---|---|---|
+| Counter | `custom.googleapis.com/http/request_count` | `1` |
+| Histogram | `custom.googleapis.com/http/request_latency` | `ms` |
+
+Labels on every data point: `route`, `method`, `status_code`, `status_category` (`success` / `domain_error` / `infra_error`).
+
+Traces are exported to **Google Cloud Trace**. Console exporters are used in local development when `GOOGLE_CLOUD_PROJECT` is not set.
+
+**Telemetry dashboard:** Google Cloud Monitoring — project `ospsd-team-05` → Metrics Explorer → filter by `custom.googleapis.com/http/`.
+
+---
+
 ## Architectural Philosophy
 
-This project follows a component-based, service-oriented architecture that separates interfaces from implementations to combat complexity and ensure the system is maintainable and evolvable.
+- **Interface-Implementation Separation:** Every operation is defined by an abstract contract (ABC) and fulfilled by a concrete implementation.
+- **Service-Oriented:** The Google Calendar implementation is wrapped in a deployed FastAPI service; consumers interact over HTTP.
+- **Adapter Pattern:** Thin adapters implement abstract interfaces while delegating to concrete transports (HTTP client, Slack SDK).
+- **Component-Based Design:** Each component is a self-contained, installable Python package.
 
-- **Interface-Implementation Separation**: Every operation is defined by an abstract contract (ABC) and fulfilled by a concrete implementation. Consumers depend only on the stable interface, never on volatile implementation details.
-- **Service-Oriented**: The Google Calendar implementation is wrapped in a deployed FastAPI service. Consumers interact with it over HTTP rather than importing the library directly.
-- **Adapter Pattern**: A thin adapter implements the abstract `Client` interface while delegating all calls to the auto-generated HTTP client, making service usage look identical to library usage from the caller's perspective.
-- **Component-Based Design**: Each component is a self-contained, installable Python package that can be developed, tested, and versioned independently.
+---
 
 ## Core Components
 
-The project is a `uv` workspace containing five packages:
+The project is a `uv` workspace containing five packages plus the new HW3 additions:
 
-1. **`calendar_client_api`**: Defines the abstract `Client`, `Event`, and `Task` base classes. This is the contract for what actions a calendar client can perform. Contains no concrete logic or provider-specific dependencies.
-2. **`google_calendar_client_impl`**: Provides `GoogleCalendarClient`, a concrete implementation backed by the Google Calendar API and Google Tasks API. Handles OAuth2 authentication, raw JSON parsing, and automatic dependency injection. Consumed exclusively by the service layer.
-3. **`calendar_client_service`**: A FastAPI application that wraps `google_calendar_client_impl` and exposes its functionality over HTTP. Handles OAuth session management, provides REST endpoints for events and tasks, and is deployed to Render.
-4. **`calendar_client_service_api_client`**: A typed Python client library auto-generated from the service's OpenAPI spec. Provides typed functions and models for every endpoint without requiring raw HTTP calls.
-5. **`calendar_client_adapter`**: A thin adapter (`ServiceAdapterClient`) that implements the `calendar_client_api.Client` interface by delegating to the auto-generated HTTP client. Allows consumer code to remain unchanged when switching from direct library use to the deployed service.
+1. **`calendar_client_api`** — Abstract `Client`, `Event`, and `Task` base classes (now aligned to `ospsd_calendar_api.CalendarClient`).
+2. **`google_calendar_client_impl`** — `GoogleCalendarClient` backed by Google Calendar and Tasks REST APIs.
+3. **`calendar_client_service`** — FastAPI service exposing events, tasks, Slack/AI, and auth endpoints.
+4. **`calendar_client_service_api_client`** — Auto-generated typed Python HTTP client from the OpenAPI spec.
+5. **`calendar_client_adapter`** — `ServiceAdapterClient` shim implementing `Client` over the HTTP client.
+6. **`slack_chat_adapter`** *(HW3)* — `SlackChatAdapter` implementing the shared `ChatClient` interface.
+
+---
 
 ## Project Structure
 
 ```
 ospsd-team-05/
 ├── components/
-│   ├── calendar_client_api/              # Abstract calendar client interface (ABC)
-│   │   ├── src/calendar_client_api/
-│   │   │   ├── client.py                 # Client ABC with event & task operations
-│   │   │   ├── event.py                  # Event ABC
-│   │   │   ├── task.py                   # Task ABC
-│   │   │   └── exceptions.py             # Custom exception hierarchy
-│   │   └── tests/                        # Unit tests for the interface
-│   ├── google_calendar_client_impl/      # Google Calendar implementation
-│   │   ├── src/google_calendar_client_impl/
-│   │   │   ├── google_calendar_impl.py   # Client implementation
-│   │   │   ├── event_impl.py             # Event JSON parser
-│   │   │   ├── task_impl.py              # Task JSON parser
-│   │   │   └── auth.py                   # OAuth 2.0 authentication
-│   │   └── tests/                        # Unit tests
-│   ├── calendar_client_service/          # FastAPI HTTP service
-│   │   ├── src/calendar_client_service/
-│   │   │   ├── app.py                    # FastAPI app factory
-│   │   │   ├── dependencies.py           # DI: session-aware GoogleCalendarClient
-│   │   │   ├── models.py                 # Pydantic request/response schemas
-│   │   │   ├── auth_routes.py            # OAuth 2.0 endpoints
-│   │   │   ├── event_routes.py           # Event CRUD endpoints
-│   │   │   └── task_routes.py            # Task CRUD endpoints
-│   │   └── tests/                        # Unit tests
+│   ├── calendar_client_api/              # Abstract interface (aligned to shared API)
+│   ├── google_calendar_client_impl/      # Google Calendar + Tasks implementation
+│   ├── calendar_client_service/          # FastAPI service (events, tasks, Slack/AI, auth)
+│   │   └── src/calendar_client_service/
+│   │       ├── app.py                    # FastAPI app factory + TelemetryMiddleware
+│   │       ├── ai_tools.py               # Gemini tool definitions + dispatch logic
+│   │       ├── slack_routes.py           # /slack/events endpoint (Slack + AI)
+│   │       ├── dependencies.py           # DI: get_calendar_client, get_chat_client
+│   │       ├── event_routes.py           # Event CRUD
+│   │       └── task_routes.py            # Task CRUD
 │   ├── calendar_client_service_api_client/  # Auto-generated HTTP client
-│   │   ├── calendar_client_service_api_client/
-│   │   │   ├── api/                      # Generated endpoint functions
-│   │   │   └── models/                   # Generated Pydantic models
-│   │   └── tests/                        # Smoke tests
-│   └── calendar_client_adapter/          # Adapter: Client interface → HTTP client
-│       ├── src/calendar_client_adapter/
-│       │   └── adapter.py                # ServiceAdapterClient implementation
-│       └── tests/                        # Unit and integration tests
-├── tests/                                # Cross-component tests
-│   ├── integration/                      # Component integration tests
-│   └── e2e/                              # End-to-end tests against live APIs
+│   ├── calendar_client_adapter/          # Adapter: Client interface → HTTP client
+│   └── slack_chat_adapter/              # Adapter: ChatClient interface → Slack SDK
+├── infra/                                # Terraform IaC (Cloud Run, Secret Manager, IAM)
+├── tests/
+│   ├── integration/                      # Component integration tests (incl. VCR cassettes)
+│   └── e2e/                              # End-to-end tests against live Google APIs
 ├── docs/                                 # MkDocs documentation source
-├── Dockerfile                            # Container definition for Render deployment
-├── pyproject.toml                        # Root workspace configuration
-└── mkdocs.yml                            # Documentation configuration
+├── Dockerfile                            # Container for Cloud Run deployment
+├── pyproject.toml                        # Root workspace config
+└── mkdocs.yml                            # Documentation config
 ```
 
-## Project Setup
+---
 
-### 1. Prerequisites
-
-- Python 3.11 or higher
-- `uv` – A fast, all-in-one Python package manager.
-
-### 2. Initial Setup
-
-1. **Install `uv`:**
-   ```bash
-   # macOS / Linux
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
-
-2. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/samuelj25/ospsd-team-05.git
-   cd ospsd-team-05
-   ```
-
-3. **Set Up Google Credentials:**
-   - Follow the [Google Cloud instructions](https://developers.google.com/calendar/api/quickstart/python) to enable the Google Calendar API and Google Tasks API.
-   - Create an OAuth 2.0 Client ID in the Google Cloud Console and note your Client ID, Client Secret, and Redirect URI.
-   - **Important:** Credentials must never be committed to version control. Set them as environment variables locally (see below) or via your deployment platform.
-
-4. **Create and Sync the Virtual Environment:**
-   ```bash
-   uv sync --all-packages
-   ```
-
-5. **Run the Service Locally:**
-   ```bash
-   uv run uvicorn calendar_client_service.app:app --reload --port 8000 --env-file .env
-   ```
-   Navigate to `http://localhost:8000/auth/login` to complete the OAuth flow and obtain a session cookie.
-
-### 3. Environment Variables
-
-| Variable | Description |
-|---|---|
-| `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 Client ID from GCP Console |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 Client Secret from GCP Console |
-| `OAUTH_REDIRECT_URI` | OAuth callback URL (default: `http://localhost:8000/auth/callback`) |
-| `GOOGLE_CALENDAR_ID` | Calendar ID to operate on (default: `primary`) |
-
-## Development Workflow
-
-All commands should be run from the project root.
-
-### Running the Toolchain
-
-- **Linting & Formatting (Ruff):**
-  ```bash
-  uv run ruff check .
-  ```
-
-- **Static Type Checking (MyPy):**
-  ```bash
-  uv run mypy --strict .
-  ```
-
-- **Testing (Pytest):**
-  ```bash
-  uv run pytest
-  ```
-
-- **Documentation (MkDocs):**
-  ```bash
-  uv run mkdocs serve
-  ```
-  Open `http://127.0.0.1:8000` to view the documentation site.
-
-## Testing
-
-The project implements a layered testing strategy:
-
-- **Unit Tests** (`components/*/tests/`): Fast, isolated tests with mocked dependencies. No real API calls.
-- **Integration Tests** (`tests/integration/`): Verify that dependency injection works and components integrate correctly.
-- **End-to-End Tests** (`tests/e2e/`): Full workflow tests against real Google APIs using test credentials.
-
-Coverage thresholds are enforced in CI, and test results are reported to the CircleCI dashboard.
-
-```bash
-# Run all tests with coverage
-uv run pytest
-```
-
-## Continuous Integration
-
-The project uses CircleCI for automated builds. The pipeline runs static analysis (ruff, mypy), all test suites, stores test results, and reports code coverage. See `.circleci/config.yml` for the full configuration.
-
-## Deployment
-
-The service is deployed to **Google Cloud Run** and provisioned with **Terraform** (IaC in `infra/`).
-Docker images are built and pushed to Google Artifact Registry by the CircleCI pipeline, which then
-deploys the new revision via `gcloud run deploy`.
-
-### Live Service
+## Live Service
 
 | Endpoint | URL |
 |---|---|
 | **Base URL** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app` |
-| **Health check** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/health` → `{"status": "ok"}` |
+| **Health check** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/health` |
 | **OpenAPI spec** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/openapi.json` |
 | **Slack events** | `https://calendar-client-service-iozhebgpyq-uc.a.run.app/slack/events` |
 
-### Platform & IaC
-- **Platform:** Google Cloud Run (region: `us-central1`)
-- **IaC:** Terraform (`infra/`). Provisions the Cloud Run service, a dedicated service account, Secret Manager secrets with per-secret IAM bindings, and observability roles (`roles/cloudtrace.agent`, `roles/monitoring.metricWriter`).
-- **CI/CD:** CircleCI — runs lint, type-check, unit + integration tests, then builds the Docker image and deploys to Cloud Run on the `hw3-calendar-task-api` branch.
-- **Base Image:** `ghcr.io/astral-sh/uv:python3.12-bookworm-slim`
+---
 
-### Required Environment Variables (Production)
+## Deployment & IaC
 
-Secrets are stored in **Google Secret Manager** and injected into Cloud Run containers at runtime via Terraform:
+- **Platform:** Google Cloud Run (`us-central1`)
+- **IaC:** Terraform (`infra/`). Provisions Cloud Run, a dedicated service account, Secret Manager secrets, and observability IAM roles (`roles/cloudtrace.agent`, `roles/monitoring.metricWriter`).
+- **CI/CD:** CircleCI — lint → type-check → unit → integration → e2e → Docker build/push → Terraform deploy. Deploys automatically on the `hw3` branch.
+
+### IaC Bootstrap
+
+```bash
+# Authenticate
+gcloud auth application-default login
+
+# Set your project
+gcloud config set project <GCP_PROJECT_ID>
+
+# Initialise and apply Terraform
+terraform -chdir=infra init
+terraform -chdir=infra apply \
+  -var="project_id=<GCP_PROJECT_ID>" \
+  -var="region=us-central1" \
+  -var="service_name=calendar-client-service" \
+  -var="image_url=<IMAGE_URL>" \
+  -var="enable_service=true"
+```
+
+Secrets are managed exclusively through Google Secret Manager — never stored in version control.
+
+---
+
+## Project Setup
+
+### Prerequisites
+
+- Python 3.11+
+- `uv` — fast Python package manager
+
+### Local Setup
+
+```bash
+# 1. Install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 2. Clone
+git clone https://github.com/samuelj25/ospsd-team-05.git
+cd ospsd-team-05
+
+# 3. Sync all packages
+uv sync --all-packages
+
+# 4. Run locally
+uv run uvicorn calendar_client_service.app:app --reload --port 8000 --env-file .env
+```
+
+### Environment Variables
 
 | Variable | Description |
 |---|---|
 | `GEMINI_API_KEY` | Gemini / Google AI Studio API key |
 | `SLACK_BOT_TOKEN` | Slack Bot OAuth token (`xoxb-…`) |
-| `SLACK_SIGNING_SECRET` | Slack signing secret for request verification |
-| `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 Client ID from GCP Console |
-| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 Client Secret from GCP Console |
+| `SLACK_SIGNING_SECRET` | Slack signing secret |
+| `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 Client ID |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 Client Secret |
+| `OAUTH_REDIRECT_URI` | OAuth callback URL (default: `http://localhost:8000/auth/callback`) |
 | `GCP_CREDENTIALS_JSON_BASE64` | Base64-encoded `credentials.json` |
 | `GCP_TOKEN_JSON_BASE64` | Base64-encoded `token.json` |
+| `GOOGLE_CLOUD_PROJECT` | GCP project ID (enables Cloud Monitoring/Trace export) |
+| `CHAT_BACKEND` | Chat backend selector (default: `"slack"`) |
 
-_Note: Secrets are never stored in version control and are only managed via Google Secret Manager._
+---
+
+## Development Workflow
+
+```bash
+# Lint & format
+uv run ruff check .
+
+# Type checking
+uv run mypy --strict .
+
+# All tests with coverage
+uv run pytest
+
+# Docs site (local preview)
+uv run mkdocs serve
+```
+
+## Testing
+
+- **Unit tests** (`components/*/tests/`): Fast, isolated, mocked dependencies.
+- **Integration tests** (`tests/integration/`): Full adapter→service chain with VCR cassettes for AI tool dispatch.
+- **E2E tests** (`tests/e2e/`): Full lifecycle against live Google APIs with real credentials.
+
+Coverage thresholds are enforced in CI and results are reported to the CircleCI dashboard.
+
+---
+
+## Documentation
+
+MkDocs documentation is configured in `mkdocs.yml` and covers all components including HW3 additions. Build and serve locally:
+
+```bash
+uv run mkdocs serve   # http://127.0.0.1:8000
+uv run mkdocs build   # static site in site/
+```
