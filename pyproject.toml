@@ -9,6 +9,7 @@ dependencies = []
 [tool.uv.workspace]
 members = [
     "components/calendar_client_api",
+    "components/calendar_task_api",
     "components/google_calendar_client_impl",
     "components/calendar_client_service",
     "components/calendar_client_service_api_client",
@@ -43,6 +44,7 @@ explicit_package_bases = true
 exclude = ["^components/calendar_client_service_api_client/"]
 mypy_path = [
     "components/calendar_client_api/src",
+    "components/calendar_task_api/src",
     "components/google_calendar_client_impl/src",
     "components/calendar_client_service/src",
     "components/calendar_client_adapter/src",
@@ -50,9 +52,6 @@ mypy_path = [
     "components/ai_client_api/src",
     "components/gemini_ai_client_impl/src",
     "components/slack_chat_adapter/src",
-    "tests",
-    "components/google_calendar_client_impl/tests",
-    "components/calendar_client_adapter/tests",
 ]
 
 [[tool.mypy.overrides]]
@@ -89,6 +88,7 @@ pythonpath = [
   "components/slack_chat_adapter/src",
 ]
 testpaths = ["tests", "components/*/tests"]
+env_files = [".env"]
 addopts = [
   "--cov=calendar_client_api",
   "--cov=google_calendar_client_impl",
@@ -96,9 +96,11 @@ addopts = [
   "--cov-report=term-missing",
   "--cov-report=html:coverage-reports/htmlcov",
   "--cov-report=xml:coverage-reports/coverage.xml",
+  "--cov-fail-under=85",
 ]
 markers = [
     "e2e: mark test as an end-to-end test",
+    "vcr: mark test as using VCR cassettes",
 ]
 
 [tool.coverage.run]
@@ -127,6 +129,8 @@ dev = [
     "mypy>=1.19.1",
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
+    "pytest-dotenv>=0.5.2",
+    "pytest-recording>=0.13.2",
     "ruff>=0.15.1",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",

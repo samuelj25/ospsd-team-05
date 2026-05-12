@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
 import google.generativeai as genai
 from ai_client_api.client import AbstractAIClient
+from ai_client_api.exceptions import AIResponseError
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -65,21 +65,21 @@ class GeminiAIClient(AbstractAIClient):
 
     def __init__(
         self,
-        model_name: str = "gemma-4-31b-it",
+        model_name: str = "gemini-2.5-flash",
         api_key: str | None = None,
     ) -> None:
         """
         Initialize the GeminiAIClient.
 
         Args:
-            model_name: Gemini model identifier (default ``gemini-.5-flash``).
+            model_name: Gemini model identifier (default ``gemini-2.5-flash``).
             api_key: Optional explicit API key; falls back to ``GEMINI_API_KEY`` env var.
 
         """
         resolved_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not resolved_key:
             msg = "GEMINI_API_KEY is not set in the environment."
-            raise RuntimeError(msg)
+            raise ValueError(msg)
         genai.configure(api_key=resolved_key) # type: ignore[attr-defined]
         self._model_name = model_name
 
@@ -162,8 +162,10 @@ class GeminiAIClient(AbstractAIClient):
         Args:
             prompt: User message.
             tools: Optional tool definitions the model may call.
-            context: Prior conversation turns (ignored in this implementation
-                    — Gemini multi-turn is handled via ``ChatSession``).
+            context: Prior conversation turns in the format
+                    ``[{"role": "user"|"model", "content": "..."}]``.
+                    Each turn is converted to a Gemini history entry and
+                    passed to ``start_chat`` so the model has full context.
             tool_dispatcher: Optional callable ``(name, args) -> ToolResult``
                             used to execute tool calls.
 
@@ -191,13 +193,20 @@ class GeminiAIClient(AbstractAIClient):
                 if part.text and not getattr(part, "thought", None):
                     return cast("str", part.text).strip()
 
-        # Pass 2: fallback
+        # Pass 2: fallback — accept thought parts if there is nothing else
         for candidate in response.candidates:
             for part in candidate.content.parts:
                 if part.text:
                     return cast("str", part.text).strip()
 
-        return json.dumps({"raw": str(response)})
+        logger.error(
+            "Gemini returned a response with no extractable text: %s", response
+        )
+        msg = (
+            "Gemini response contained no plain-text parts. "
+            "The model may have returned only thought parts or an empty candidate list."
+        )
+        raise AIResponseError(msg)
 
 
 # Type alias used in the send_message signature above

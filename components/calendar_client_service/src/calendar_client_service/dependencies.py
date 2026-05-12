@@ -124,24 +124,37 @@ def get_ai_client() -> AbstractAIClient:
 
 
 # ---------------------------------------------------------------------------
-# Slack chat client (singleton, env-var driven)
+# Chat client (singleton, env-var driven, backend-agnostic)
 # ---------------------------------------------------------------------------
 
 _slack_client: ChatClient | None = None
 
 
-def get_slack_client() -> ChatClient:
+def get_chat_client() -> ChatClient:
     """
-    Return the singleton SlackChatAdapter, constructing it on first call.
+    Return the singleton chat backend client, constructing it on first call.
 
-    Reads ``SLACK_BOT_TOKEN`` from the environment.
+    The backend is selected by the ``CHAT_BACKEND`` environment variable
+    (default: ``"slack"``).  This makes the chat layer swappable without
+    touching any route code — only this factory changes when a new backend
+    (e.g. Discord) is added.
+
+    Currently supported backends:
+    - ``"slack"``: :class:`~slack_chat_adapter.adapter.SlackChatAdapter`
+      (reads ``SLACK_BOT_TOKEN`` from the environment).
 
     Raises:
-        RuntimeError: If ``SLACK_BOT_TOKEN`` is not set.
+        RuntimeError: If ``SLACK_BOT_TOKEN`` is not set (for the ``slack``
+            backend) or an unknown backend is requested.
 
     """
     global _slack_client  # noqa: PLW0603
     if _slack_client is None:
         load_dotenv()
-        _slack_client = SlackChatAdapter()
+        backend = os.environ.get("CHAT_BACKEND", "slack")
+        if backend == "slack":
+            _slack_client = SlackChatAdapter()
+        else:
+            msg = f"Unknown CHAT_BACKEND: {backend!r}"
+            raise RuntimeError(msg)
     return _slack_client

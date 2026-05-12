@@ -90,8 +90,11 @@ class TestAuthCallback:
     ) -> None:
         """Callback sets a session_id cookie when the code exchange succeeds."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
+        mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "valid-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
+        )
 
         assert response.status_code == 200
         assert "session_id" in response.cookies
@@ -104,8 +107,11 @@ class TestAuthCallback:
     ) -> None:
         """Callback returns authenticated=True in the body."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
+        mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "valid-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
+        )
 
         data = response.json()
         assert data["authenticated"] is True
@@ -118,11 +124,43 @@ class TestAuthCallback:
     ) -> None:
         """Callback returns HTTP 400 when handle_callback raises an exception."""
         mock_oauth_manager.handle_callback.side_effect = ValueError("bad code")
+        mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "bad-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "bad-code", "state": "valid-token"}
+        )
 
         assert response.status_code == 400
         assert "bad code" in response.json()["detail"]
+
+    def test_returns_400_on_missing_state(
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
+    ) -> None:
+        """Callback returns HTTP 400 when no state parameter is provided."""
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code"}
+        )
+
+        assert response.status_code == 400
+        mock_oauth_manager.handle_callback.assert_not_called()
+
+    def test_returns_400_on_invalid_state(
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
+    ) -> None:
+        """Callback returns HTTP 400 when the state token fails CSRF validation."""
+        mock_oauth_manager.consume_state.return_value = False
+
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "forged-token"}
+        )
+
+        assert response.status_code == 400
+        assert "CSRF" in response.json()["detail"]
+        mock_oauth_manager.handle_callback.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

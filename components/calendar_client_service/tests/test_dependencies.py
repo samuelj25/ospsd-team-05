@@ -10,8 +10,8 @@ import calendar_client_service.dependencies as deps
 from calendar_client_service.dependencies import (
     get_ai_client,
     get_calendar_client,
+    get_chat_client,
     get_oauth_manager,
-    get_slack_client,
 )
 
 
@@ -104,12 +104,20 @@ def test_get_ai_client() -> None:
         mock_ai.assert_called_once()
 
 
-def test_get_slack_client() -> None:
-    """Test getting the Slack client singleton."""
+def test_get_chat_client_slack_backend() -> None:
+    """Test getting the chat client singleton with the default slack backend."""
     with patch("calendar_client_service.dependencies.SlackChatAdapter") as mock_slack:
-        client = get_slack_client()
+        client = get_chat_client()
         assert client == mock_slack.return_value
 
-        client2 = get_slack_client()
+        client2 = get_chat_client()
         assert client2 == client
         mock_slack.assert_called_once()
+
+
+def test_get_chat_client_unknown_backend() -> None:
+    """Test that an unknown CHAT_BACKEND raises RuntimeError."""
+    import os  # noqa: PLC0415
+    with patch.dict(os.environ, {"CHAT_BACKEND": "discord"}), \
+         pytest.raises(RuntimeError, match="Unknown CHAT_BACKEND"):
+        get_chat_client()

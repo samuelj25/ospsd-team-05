@@ -1,5 +1,5 @@
-# Use a slim Python 3.11 image with `uv` pre-installed by Astral
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim
+# Use a slim Python 3.12 image with `uv` pre-installed by Astral
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 
 # Set working directory inside the container
 WORKDIR /app

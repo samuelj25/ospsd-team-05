@@ -6,11 +6,14 @@ import os
 from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 
-import calendar_client_api
+import calendar_task_api
 import pytest
+from googleapiclient.errors import HttpError
+from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
 
 from google_calendar_client_impl import GoogleCalendarClient
 from google_calendar_client_impl.event_impl import google_dict_to_event
+from google_calendar_client_impl.google_calendar_impl import register
 
 # ---------------------------------------------------------------------------
 # connect() tests
@@ -59,6 +62,14 @@ def test_google_client_connect_picks_up_calendar_id_from_env() -> None:
         assert client.calendar_id == "custom@group.calendar.google.com"
 
 
+def test_require_services_before_connect_raises() -> None:
+    """Test that calling CRUD methods before connect() raises CalendarOperationError."""
+    client = GoogleCalendarClient()
+    with pytest.raises(CalendarOperationError, match="not connected"):
+        client._require_calendar_service()
+    with pytest.raises(CalendarOperationError, match="not connected"):
+        client._require_tasks_service()
+
 # ---------------------------------------------------------------------------
 # Event tests
 # ---------------------------------------------------------------------------
@@ -104,6 +115,13 @@ def test_google_dict_to_event_missing_id() -> None:
         google_dict_to_event({"summary": "no id", "start": {}, "end": {}})
 
 
+def test_from_raw_data() -> None:
+    """Test from_raw_data parses JSON string correctly."""
+    client = GoogleCalendarClient()
+    raw = '{"id": "raw123", "summary": "raw", "start": {"dateTime": "2026-01-01T00:00:00Z"}, "end": {"dateTime": "2026-01-01T01:00:00Z"}}' # noqa: E501
+    event = client.from_raw_data(raw)
+    assert event.id == "raw123"
+
 # ---------------------------------------------------------------------------
 # Test helpers
 # ---------------------------------------------------------------------------
@@ -132,6 +150,50 @@ def test_google_client_get_event_with_mock() -> None:
         assert event.title == "Single Event"
         assert event.location == "Room 1"
         assert event.description == "Desc"
+
+
+def test_google_client_get_event_not_found() -> None:
+    """Test get_event handles 404 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_service = patch("googleapiclient.discovery.Resource").start()
+        client._service = mock_service
+
+        mock_get = mock_service.events.return_value.get.return_value
+        resp = MagicMock()
+        resp.status = 404
+        mock_get.execute.side_effect = HttpError(resp, b"not found")
+
+        with pytest.raises(EventNotFoundError, match="not found"):
+            client.get_event("missing")
+
+def test_google_client_get_event_cancelled() -> None:
+    """Test get_event handles cancelled status."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_service = patch("googleapiclient.discovery.Resource").start()
+        client._service = mock_service
+
+        mock_get = mock_service.events.return_value.get.return_value
+        mock_get.execute.return_value = {"id": "single_123", "status": "cancelled"}
+
+        with pytest.raises(EventNotFoundError, match="cancelled"):
+            client.get_event("single_123")
+
+def test_google_client_get_event_generic_error() -> None:
+    """Test get_event handles 500 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_service = patch("googleapiclient.discovery.Resource").start()
+        client._service = mock_service
+
+        mock_get = mock_service.events.return_value.get.return_value
+        resp = MagicMock()
+        resp.status = 500
+        mock_get.execute.side_effect = HttpError(resp, b"server error")
+
+        with pytest.raises(CalendarOperationError, match="HTTP Error 500"):
+            client.get_event("error")
 
 
 def test_google_client_create_event_with_mock() -> None:
@@ -163,6 +225,28 @@ def test_google_client_create_event_with_mock() -> None:
         assert kwargs["body"]["start"]["dateTime"] == "2026-02-20T10:00:00+00:00"
 
         assert new_event.id == "new_123"
+
+def test_google_client_create_event_with_location_and_desc() -> None:
+    """Test create_event handles location and description correctly."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_service = patch("googleapiclient.discovery.Resource").start()
+        client._service = mock_service
+        mock_events = mock_service.events.return_value
+        mock_insert = mock_events.insert.return_value
+        mock_insert.execute.return_value = {
+            "id": "new_123",
+            "summary": "New Event",
+            "start": {"dateTime": "2026-02-20T10:00:00+00:00", "timeZone": "UTC"},
+            "end": {"dateTime": "2026-02-20T11:00:00+00:00", "timeZone": "UTC"},
+        }
+        start = datetime(2026, 2, 20, 10, 0, tzinfo=UTC)
+        end = datetime(2026, 2, 20, 11, 0, tzinfo=UTC)
+
+        client.create_event("New Event", start, end, description="desc", location="loc")
+        _, kwargs = mock_events.insert.call_args
+        assert kwargs["body"]["description"] == "desc"
+        assert kwargs["body"]["location"] == "loc"
 
 
 def test_google_client_update_event_with_mock() -> None:
@@ -200,7 +284,7 @@ def test_google_client_update_event_with_mock() -> None:
 # ---------------------------------------------------------------------------
 
 
-class MockTask(calendar_client_api.Task):
+class MockTask(calendar_task_api.Task):
     """Mock Task for testing CRUD methods."""
 
     def __init__(
@@ -278,6 +362,49 @@ def test_google_client_get_task_with_mock() -> None:
         assert task.title == "Buy Milk"
         assert not task.is_completed
 
+def test_google_client_get_task_not_found() -> None:
+    """Test get_task handles 404 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_tasks_svc = patch("googleapiclient.discovery.Resource").start()
+        client._tasks_service = mock_tasks_svc
+
+        mock_get = mock_tasks_svc.tasks.return_value.get.return_value
+        resp = MagicMock()
+        resp.status = 404
+        mock_get.execute.side_effect = HttpError(resp, b"not found")
+
+        with pytest.raises(calendar_task_api.TaskNotFoundError, match="not found"):
+            client.get_task("missing")
+
+def test_google_client_get_task_deleted() -> None:
+    """Test get_task handles deleted task."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_tasks_svc = patch("googleapiclient.discovery.Resource").start()
+        client._tasks_service = mock_tasks_svc
+
+        mock_get = mock_tasks_svc.tasks.return_value.get.return_value
+        mock_get.execute.return_value = {"id": "123", "deleted": True}
+
+        with pytest.raises(calendar_task_api.TaskNotFoundError, match="deleted"):
+            client.get_task("123")
+
+def test_google_client_get_task_generic_error() -> None:
+    """Test get_task handles 500 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_tasks_svc = patch("googleapiclient.discovery.Resource").start()
+        client._tasks_service = mock_tasks_svc
+
+        mock_get = mock_tasks_svc.tasks.return_value.get.return_value
+        resp = MagicMock()
+        resp.status = 500
+        mock_get.execute.side_effect = HttpError(resp, b"error")
+
+        with pytest.raises(CalendarOperationError, match="HTTP Error 500"):
+            client.get_task("error")
+
 
 def test_google_client_create_task_with_mock() -> None:
     """Test create_task calls the insert API with correctly formatted body."""
@@ -336,6 +463,29 @@ def test_google_client_update_task_with_mock() -> None:
         _, kwargs = mock_tasks.update.call_args
         assert kwargs["task"] == "update_task"
 
+def test_google_client_update_task_desc() -> None:
+    """Test update_task with description patches the field."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_tasks_svc = patch("googleapiclient.discovery.Resource").start()
+        client._tasks_service = mock_tasks_svc
+
+        mock_tasks = mock_tasks_svc.tasks.return_value
+        mock_tasks.get.return_value.execute.return_value = {
+            "id": "1",
+            "title": "old title"
+        }
+        mock_tasks.update.return_value.execute.return_value = {
+            "id": "1",
+            "title":"test title",
+            "notes": "new desc"
+        }
+
+        client.update_task("1", description="new desc")
+
+        _, kwargs = mock_tasks.update.call_args
+        assert kwargs["body"]["notes"] == "new desc"
+
 
 def test_google_client_delete_task_with_mock() -> None:
     """Test delete_task calls the delete API."""
@@ -350,6 +500,66 @@ def test_google_client_delete_task_with_mock() -> None:
         mock_tasks.delete.assert_called_once()
         _, kwargs = mock_tasks.delete.call_args
         assert kwargs["task"] == "del_task_123"
+
+def test_google_client_delete_task_not_found() -> None:
+    """Test delete_task handles 404 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_tasks_svc = patch("googleapiclient.discovery.Resource").start()
+        client._tasks_service = mock_tasks_svc
+
+        mock_del = mock_tasks_svc.tasks.return_value.delete
+        resp = MagicMock()
+        resp.status = 404
+        mock_del.return_value.execute.side_effect = HttpError(resp, b"not found")
+
+        with pytest.raises(calendar_task_api.TaskNotFoundError, match="not found"):
+            client.delete_task("missing")
+
+def test_google_client_delete_task_generic_error() -> None:
+    """Test delete_task handles 500 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_tasks_svc = patch("googleapiclient.discovery.Resource").start()
+        client._tasks_service = mock_tasks_svc
+
+        mock_del = mock_tasks_svc.tasks.return_value.delete
+        resp = MagicMock()
+        resp.status = 500
+        mock_del.return_value.execute.side_effect = HttpError(resp, b"server error")
+
+        with pytest.raises(CalendarOperationError, match="HTTP Error 500"):
+            client.delete_task("error")
+
+def test_google_client_delete_event_not_found() -> None:
+    """Test delete_event handles 404 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_service = patch("googleapiclient.discovery.Resource").start()
+        client._service = mock_service
+
+        mock_del = mock_service.events.return_value.delete.return_value
+        resp = MagicMock()
+        resp.status = 404
+        mock_del.execute.side_effect = HttpError(resp, b"not found")
+
+        with pytest.raises(EventNotFoundError, match="not found"):
+            client.delete_event("missing")
+
+def test_google_client_delete_event_generic_error() -> None:
+    """Test delete_event handles 500 HttpError."""
+    with patch("google_calendar_client_impl.google_calendar_impl.build"):
+        client = GoogleCalendarClient()
+        mock_service = patch("googleapiclient.discovery.Resource").start()
+        client._service = mock_service
+
+        mock_del = mock_service.events.return_value.delete.return_value
+        resp = MagicMock()
+        resp.status = 500
+        mock_del.execute.side_effect = HttpError(resp, b"server error")
+
+        with pytest.raises(CalendarOperationError, match="HTTP Error 500"):
+            client.delete_event("error")
 
 
 def test_google_client_get_tasks_with_mock() -> None:
@@ -405,3 +615,13 @@ def test_google_client_mark_task_completed_with_mock() -> None:
         mock_tasks.update.assert_called_once()
         _, kwargs = mock_tasks.update.call_args
         assert kwargs["body"]["status"] == "completed"
+
+def test_register() -> None:
+    """Test register() function binds the implementation to the API module."""
+    original = calendar_task_api.get_client
+    try:
+        register()
+        client = calendar_task_api.get_client()
+        assert isinstance(client, GoogleCalendarClient)
+    finally:
+        calendar_task_api.get_client = original

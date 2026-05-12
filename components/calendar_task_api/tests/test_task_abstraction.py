@@ -3,7 +3,7 @@
 import datetime as dt
 from unittest.mock import Mock
 
-from calendar_client_api import Task
+from calendar_task_api import Task
 
 
 def test_task_abstraction_comprehensive() -> None:
@@ -13,7 +13,7 @@ def test_task_abstraction_comprehensive() -> None:
     mock_task.title = "Finish interface and implementation draft"
     mock_task.start_time = dt.datetime(2026, 2, 16, 9, 0, tzinfo=dt.UTC)
     mock_task.end_time = dt.datetime(2026, 2, 16, 10, 0, tzinfo=dt.UTC)
-    mock_task.description = "Complete calendar_client_api interface + google_calendar_client_impl."
+    mock_task.description = "Complete calendar_task_api interface + google_calendar_client_impl."
     mock_task.is_completed = False
 
     properties = {
@@ -30,7 +30,7 @@ def test_task_abstraction_comprehensive() -> None:
     assert properties["start_time"] == dt.datetime(2026, 2, 16, 9, 0, tzinfo=dt.UTC)
     assert properties["end_time"] == dt.datetime(2026, 2, 16, 10, 0, tzinfo=dt.UTC)
     assert properties["description"] == (
-        "Complete calendar_client_api interface + google_calendar_client_impl."
+        "Complete calendar_task_api interface + google_calendar_client_impl."
     )
     assert properties["is_completed"] is False
 

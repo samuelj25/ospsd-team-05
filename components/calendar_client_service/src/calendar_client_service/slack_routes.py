@@ -19,8 +19,8 @@ from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClien
 from calendar_client_service.ai_tools import CALENDAR_TOOLS, dispatch_tool_call
 from calendar_client_service.dependencies import (
     get_ai_client,
+    get_chat_client,
     get_oauth_manager,
-    get_slack_client,
 )
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,10 @@ def _verify_slack_signature(request_body: bytes, headers: dict[str, str]) -> boo
     """
     Return True if the request body matches the Slack signing secret.
 
+    The secret is read from the ``SLACK_SIGNING_SECRET`` environment variable,
+    which must be set before the application starts (``create_app`` enforces
+    this).  Requests with a missing or stale timestamp are rejected outright.
+
     Args:
         request_body: Raw bytes of the incoming request body.
         headers: Request headers dict (lowercase keys).
@@ -54,9 +58,6 @@ def _verify_slack_signature(request_body: bytes, headers: dict[str, str]) -> boo
 
     """
     secret = os.environ.get("SLACK_SIGNING_SECRET", "")
-    if not secret:
-        logger.warning("SLACK_SIGNING_SECRET not set — skipping signature verification.")
-        return True
 
     ts = headers.get("x-slack-request-timestamp", "")
     sig = headers.get("x-slack-signature", "")
@@ -115,8 +116,11 @@ async def _handle_message_event(
     # Check authentication
     session_id = _slack_user_sessions.get(user_id)
     if not session_id or not oauth_manager.is_authenticated(session_id):
-        # Allow fallback to E2E session for tests
-        session_id = os.environ.get("E2E_SESSION_ID")
+        # Allow fallback to E2E session in the test environment only.
+        # This branch is intentionally gated so that a leaked CI secret cannot
+        # bypass per-user auth in production.
+        if os.environ.get("ENV") == "test":
+            session_id = os.environ.get("E2E_SESSION_ID")
         if not session_id or not oauth_manager.is_authenticated(session_id):
             login_url = f"{base_url}/auth/login?slack_user_id={user_id}"
             chat_client.send_message(
@@ -178,7 +182,7 @@ async def slack_events(
     background_tasks: BackgroundTasks,
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
     ai_client: Annotated[AbstractAIClient, Depends(get_ai_client)],
-    chat_client: Annotated[ChatClient, Depends(get_slack_client)],
+    chat_client: Annotated[ChatClient, Depends(get_chat_client)],
 ) -> dict[str, str]:
     """
     Handle incoming Slack Events API payloads.

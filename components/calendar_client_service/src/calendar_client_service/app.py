@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING
 
-from calendar_client_api.exceptions import TaskNotFoundError
+from calendar_task_api.exceptions import TaskNotFoundError
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
@@ -31,10 +32,12 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import (
     ConsoleMetricExporter,
+    InMemoryMetricReader,
     PeriodicExportingMetricReader,
 )
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +74,18 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         latency_ms = (time.perf_counter() - start) * 1000.0
 
-        is_success = response.status_code < HTTPStatus.BAD_REQUEST
-        status_category = "success" if is_success else "failure"
+        if response.status_code < HTTPStatus.BAD_REQUEST:
+            status_category = "success"
+        elif response.status_code < HTTPStatus.INTERNAL_SERVER_ERROR:
+            status_category = "domain_error"  # 4xx — expected business-logic errors
+        else:
+            status_category = "infra_error"   # 5xx — unexpected failures
 
         attributes: dict[str, str] = {
             "status_code": str(response.status_code),
             "status_category": status_category,
             "route": request.url.path,
+            "method": request.method,
         }
 
         _request_counter.add(1, attributes)
@@ -96,8 +104,8 @@ def _configure_telemetry(application: FastAPI) -> None:
     tracer_provider = TracerProvider()
     gcp_project = os.environ.get("GOOGLE_CLOUD_PROJECT")
 
-    trace_exporter: ConsoleSpanExporter | CloudTraceSpanExporter
-    metrics_reader: PeriodicExportingMetricReader
+    trace_exporter: ConsoleSpanExporter | CloudTraceSpanExporter | InMemorySpanExporter
+    metrics_reader: PeriodicExportingMetricReader | InMemoryMetricReader
 
     if gcp_project:
         trace_exporter = CloudTraceSpanExporter(project_id=gcp_project)  # type: ignore[no-untyped-call]
@@ -105,6 +113,10 @@ def _configure_telemetry(application: FastAPI) -> None:
         metrics_reader = PeriodicExportingMetricReader(metrics_exporter)
 
         logger.info("OTel: GCP Trace & Monitoring active (project=%s).", gcp_project)
+    elif "pytest" in sys.modules:
+        # in memory exporters for unit & integration test cases
+        trace_exporter = InMemorySpanExporter()
+        metrics_reader = InMemoryMetricReader()
     else:
         trace_exporter = ConsoleSpanExporter()
         metrics_reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
@@ -136,6 +148,9 @@ def create_app() -> FastAPI:
     telemetry middleware, adds the ``/metrics`` endpoint, configures
     OpenTelemetry tracing, and registers exception handlers.
 
+    Raises:
+        RuntimeError: If ``SLACK_SIGNING_SECRET`` is not set.
+
     Returns:
         A configured :class:`fastapi.FastAPI` instance.
 
@@ -154,6 +169,18 @@ def create_app() -> FastAPI:
     # ------------------------------------------------------------------
 
     application.add_middleware(TelemetryMiddleware)
+
+    # ------------------------------------------------------------------
+    # Startup validation — fail fast if required env vars are missing
+    # ------------------------------------------------------------------
+
+    if not os.environ.get("SLACK_SIGNING_SECRET"):
+        msg = (
+            "SLACK_SIGNING_SECRET is not set. "
+            "The /slack/events endpoint cannot verify request signatures without it. "
+            "Set this environment variable before starting the service."
+        )
+        raise RuntimeError(msg)
 
     # ------------------------------------------------------------------
     # Health

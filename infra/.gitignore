@@ -1,5 +1,6 @@
 # Never commit real tfvars — they contain secrets
 terraform.tfvars
+*.tfvars
 
 # Terraform state files — store remotely (GCS backend) in production
 *.tfstate
@@ -8,7 +9,6 @@ terraform.tfvars
 
 # Terraform working directory
 .terraform/
-.terraform.lock.hcl
 
 # Crash logs
 crash.log

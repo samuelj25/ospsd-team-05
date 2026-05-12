@@ -1,182 +1,184 @@
-"""Integration tests for the AI tool dispatcher (dispatch_tool_call)."""
+"""
+Integration tests for the AI tool dispatcher.
+
+Uses the real ``GoogleCalendarClient`` connected to live Google Calendar APIs.
+HTTP interactions are recorded as VCR cassettes on the first run
+(``--record-mode=new_episodes``) and replayed on subsequent runs so CI does
+not require live credentials after the cassettes are committed.
+"""
 
 from __future__ import annotations
 
 import json
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, cast
-from unittest.mock import MagicMock
+from typing import TYPE_CHECKING
 
 import pytest
 from calendar_client_service.ai_tools import dispatch_tool_call
-from ospsd_calendar_api.models import Event
 
 if TYPE_CHECKING:
     from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
 
+# ---------------------------------------------------------------------------
+# Shared time anchors (used as cassette-stable values)
+# ---------------------------------------------------------------------------
 
-def _make_event(
-    event_id: str = "evt-1",
-    title: str = "Test Event",
-    start: datetime | None = None,
-    end: datetime | None = None,
-    description: str = "",
-) -> Event:
-    """Return a fake :class:`Event` for use as a mock return value."""
-    now = datetime.now(tz=UTC)
-    return Event(
-        id=event_id,
-        title=title,
-        start_time=start or now,
-        end_time=end or (now + timedelta(hours=1)),
-        description=description,
-    )
-
-
-@pytest.fixture
-def mock_client() -> GoogleCalendarClient:
-    """MagicMock satisfying the GoogleCalendarClient interface."""
-    return cast("GoogleCalendarClient", MagicMock())
+_NOW = datetime(2026, 5, 12, 10, 0, 0, tzinfo=UTC)   # fixed → stable cassettes
+_END = _NOW + timedelta(hours=1)
+_WINDOW_END = _NOW + timedelta(hours=3)
 
 
 # ---------------------------------------------------------------------------
-# list_events
+# Tests — each class is @pytest.mark.vcr so cassettes are auto-managed
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.vcr
 class TestListEvents:
-    """dispatch_tool_call('list_events', ...) scenarios."""
+    """dispatch_tool_call('list_events') against live Google Calendar."""
 
-    def test_returns_serialised_event_list(self, mock_client: GoogleCalendarClient) -> None:
-        now = datetime.now(tz=UTC).replace(microsecond=0)
-        end = now + timedelta(hours=2)
-        cast("MagicMock", mock_client).list_events.return_value = [_make_event(start=now, end=end)]
+    def test_returns_serialised_event_list(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Create a real event, list it via the dispatcher, assert it appears."""
+        created = integration_live_client.create_event(
+            title="[VCR] List Test Event", start=_NOW, end=_END
+        )
+        try:
+            result = dispatch_tool_call(
+                "list_events",
+                {"start": _NOW.isoformat(), "end": _WINDOW_END.isoformat()},
+                integration_live_client,
+            )
+            assert not result.is_error
+            payload = json.loads(result.content)
+            assert isinstance(payload, list)
+            assert any(e["id"] == created.id for e in payload)
+        finally:
+            integration_live_client.delete_event(created.id)
 
+    def test_far_future_range_returns_empty_list(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Querying a range 10 years out returns an empty list, not an error."""
+        far_start = datetime(2036, 1, 1, tzinfo=UTC)
+        far_end = datetime(2036, 1, 2, tzinfo=UTC)
         result = dispatch_tool_call(
             "list_events",
-            {"start": now.isoformat(), "end": end.isoformat()},
-            mock_client,
+            {"start": far_start.isoformat(), "end": far_end.isoformat()},
+            integration_live_client,
         )
-
-        assert not result.is_error
-        payload = json.loads(result.content)
-        assert len(payload) == 1
-        assert payload[0]["id"] == "evt-1"
-        cast("MagicMock", mock_client).list_events.assert_called_once()
-
-    def test_empty_calendar_returns_empty_list(self, mock_client: GoogleCalendarClient) -> None:
-        now = datetime.now(tz=UTC)
-        cast("MagicMock", mock_client).list_events.return_value = []
-
-        result = dispatch_tool_call(
-            "list_events",
-            {"start": now.isoformat(), "end": (now + timedelta(hours=1)).isoformat()},
-            mock_client,
-        )
-
         assert not result.is_error
         assert json.loads(result.content) == []
 
 
-# ---------------------------------------------------------------------------
-# create_event
-# ---------------------------------------------------------------------------
-
-
+@pytest.mark.vcr
 class TestCreateEvent:
-    """dispatch_tool_call('create_event', ...) scenarios."""
+    """dispatch_tool_call('create_event') against live Google Calendar."""
 
-    def test_returns_serialised_new_event(self, mock_client: GoogleCalendarClient) -> None:
-        now = datetime.now(tz=UTC).replace(microsecond=0)
-        end = now + timedelta(hours=1)
-        cast("MagicMock", mock_client).create_event.return_value = _make_event(
-            event_id="new-1", title="Standup", start=now, end=end
-        )
-
+    def test_returns_id_and_title(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Creating an event returns a payload with id and title."""
         result = dispatch_tool_call(
             "create_event",
-            {"title": "Standup", "start": now.isoformat(), "end": end.isoformat()},
-            mock_client,
+            {
+                "title": "[VCR] Create Test",
+                "start": _NOW.isoformat(),
+                "end": _END.isoformat(),
+            },
+            integration_live_client,
         )
-
         assert not result.is_error
         payload = json.loads(result.content)
-        assert payload["id"] == "new-1"
-        assert payload["title"] == "Standup"
+        assert payload["title"] == "[VCR] Create Test"
+        assert payload["id"]
+        # Cleanup
+        integration_live_client.delete_event(payload["id"])
 
-    def test_description_defaults_to_empty_string(self, mock_client: GoogleCalendarClient) -> None:
-        now = datetime.now(tz=UTC).replace(microsecond=0)
-        end = now + timedelta(hours=1)
-        cast("MagicMock", mock_client).create_event.return_value = _make_event(start=now, end=end)
-
-        dispatch_tool_call(
+    def test_description_defaults_to_empty_string(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Omitting description creates an event with empty description."""
+        result = dispatch_tool_call(
             "create_event",
-            {"title": "No desc", "start": now.isoformat(), "end": end.isoformat()},
-            mock_client,
+            {"title": "[VCR] No Desc", "start": _NOW.isoformat(), "end": _END.isoformat()},
+            integration_live_client,
         )
-
-        cast("MagicMock", mock_client).create_event.assert_called_once_with(
-            title="No desc", start=now, end=end, description=""
-        )
-
-
-# ---------------------------------------------------------------------------
-# get_event
-# ---------------------------------------------------------------------------
-
-
-class TestGetEvent:
-    """dispatch_tool_call('get_event', ...) scenarios."""
-
-    def test_returns_serialised_event(self, mock_client: GoogleCalendarClient) -> None:
-        cast("MagicMock", mock_client).get_event.return_value = _make_event(
-            event_id="evt-42", title="Review"
-        )
-
-        result = dispatch_tool_call("get_event", {"event_id": "evt-42"}, mock_client)
-
         assert not result.is_error
         payload = json.loads(result.content)
-        assert payload["id"] == "evt-42"
-        cast("MagicMock", mock_client).get_event.assert_called_once_with("evt-42")
+        event = integration_live_client.get_event(payload["id"])
+        assert (event.description or "") == ""
+        integration_live_client.delete_event(payload["id"])
 
 
-# ---------------------------------------------------------------------------
-# delete_event
-# ---------------------------------------------------------------------------
+@pytest.mark.vcr
+class TestGetEvent:
+    """dispatch_tool_call('get_event') against live Google Calendar."""
+
+    def test_returns_correct_fields(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Fetching a known event returns all expected fields."""
+        created = integration_live_client.create_event(
+            title="[VCR] Get Test", start=_NOW, end=_END
+        )
+        try:
+            result = dispatch_tool_call(
+                "get_event", {"event_id": created.id}, integration_live_client
+            )
+            assert not result.is_error
+            payload = json.loads(result.content)
+            assert payload["id"] == created.id
+            assert payload["title"] == "[VCR] Get Test"
+        finally:
+            integration_live_client.delete_event(created.id)
+
+    def test_nonexistent_event_returns_not_found(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Requesting a non-existent event ID produces a not_found error result."""
+        result = dispatch_tool_call(
+            "get_event",
+            {"event_id": "nonexistent-event-id-xyz-00000"},
+            integration_live_client,
+        )
+        assert result.is_error
+        payload = json.loads(result.content)
+        assert payload["error_category"] == "not_found"
 
 
+@pytest.mark.vcr
 class TestDeleteEvent:
-    """dispatch_tool_call('delete_event', ...) scenarios."""
+    """dispatch_tool_call('delete_event') against live Google Calendar."""
 
-    def test_returns_success_message(self, mock_client: GoogleCalendarClient) -> None:
-        result = dispatch_tool_call("delete_event", {"event_id": "evt-9"}, mock_client)
-
+    def test_confirms_removal_and_event_is_gone(
+        self, integration_live_client: GoogleCalendarClient
+    ) -> None:
+        """Deleting an event returns a success message and the event is unretrievable."""
+        created = integration_live_client.create_event(
+            title="[VCR] Delete Test", start=_NOW, end=_END
+        )
+        result = dispatch_tool_call(
+            "delete_event", {"event_id": created.id}, integration_live_client
+        )
         assert not result.is_error
         assert "deleted" in result.content.lower()
-        cast("MagicMock", mock_client).delete_event.assert_called_once_with("evt-9")
-
-
-# ---------------------------------------------------------------------------
-# Unknown tool / error handling
-# ---------------------------------------------------------------------------
+        # Verify the event is actually gone
+        gone = dispatch_tool_call(
+            "get_event", {"event_id": created.id}, integration_live_client
+        )
+        assert gone.is_error
 
 
 class TestEdgeCases:
-    """Unknown tools and client exceptions."""
+    """Pure-logic edge cases — no API calls, no VCR needed."""
 
-    def test_unknown_tool_returns_error(self, mock_client: GoogleCalendarClient) -> None:
-        result = dispatch_tool_call("make_coffee", {}, mock_client)
-
-        assert result.is_error
-        assert "unknown" in result.content.lower()
-
-    def test_client_exception_is_caught_and_returned(
-        self, mock_client: GoogleCalendarClient
+    def test_unknown_tool_returns_error(
+        self, integration_live_client: GoogleCalendarClient
     ) -> None:
-        cast("MagicMock", mock_client).get_event.side_effect = RuntimeError("API down")
-
-        result = dispatch_tool_call("get_event", {"event_id": "x"}, mock_client)
-
+        """An unrecognised tool name returns an is_error result."""
+        result = dispatch_tool_call("make_coffee", {}, integration_live_client)
         assert result.is_error
-        assert "API down" in result.content
+        payload = json.loads(result.content)
+        assert payload["error_category"] == "unknown_tool"

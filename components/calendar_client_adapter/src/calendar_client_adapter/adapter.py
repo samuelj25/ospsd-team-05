@@ -6,9 +6,7 @@ from datetime import datetime
 from typing import Any
 
 import calendar_client_api
-from calendar_client_api import CalendarOperationError, EventNotFoundError, TaskNotFoundError
-from calendar_client_api.client import Client as ApiClient
-from calendar_client_api.task import Task
+from calendar_client_api import CalendarOperationError, EventNotFoundError
 from calendar_client_service_api_client.api.events import (
     create_event_events_post,
     delete_event_events_event_id_delete,
@@ -35,6 +33,9 @@ from calendar_client_service_api_client.models import (
     TaskResponse,
     TaskUpdate,
 )
+from calendar_task_api import TaskNotFoundError
+from calendar_task_api.client import Client as ApiClient
+from calendar_task_api.task import Task
 from ospsd_calendar_api.models import Event
 
 

@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import Any
 
-from calendar_client_api import task
+from calendar_task_api import task
 
 
 class GoogleCalendarTask(task.Task):

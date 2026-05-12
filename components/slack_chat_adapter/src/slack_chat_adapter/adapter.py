@@ -91,11 +91,14 @@ class SlackChatAdapter(ChatClient):  # type: ignore[misc]
                 raise ChannelNotFoundError(channel_id) from exc
             raise
         ts: str = resp["ts"]
+        msg_data: dict[str, Any] = resp.get("message", {})
+        # Prefer bot_id (bot tokens) then user (user tokens); fall back to "bot"
+        sender: str = msg_data.get("bot_id") or msg_data.get("user") or "bot"
         return Message(
             message_id=_encode_message_id(channel_id, ts),
             channel=channel_id,
             text=text,
-            sender="bot",
+            sender=sender,
             timestamp=datetime.fromtimestamp(float(ts), tz=UTC),
         )
 

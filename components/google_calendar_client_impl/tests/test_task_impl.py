@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from calendar_client_api import task
+from calendar_task_api import task
 
 from google_calendar_client_impl import task_impl
 

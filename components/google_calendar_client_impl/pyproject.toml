@@ -9,6 +9,7 @@ dependencies = [
     "google-auth>=2.40.3",
     "google-auth-oauthlib>=1.2.2",
     "calendar-client-api",
+    "calendar-task-api",
     "ospsd-calendar-api",
 ]
 
@@ -56,4 +57,5 @@ ignore = []
 
 [tool.uv.sources]
 calendar-client-api = { workspace = true }
+calendar-task-api = { workspace = true }
 ospsd-calendar-api = { git = "https://github.com/DeMoliT1on/ospsd-calendar-api" }
