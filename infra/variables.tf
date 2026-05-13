@@ -6,3 +6,8 @@ variable "enable_service" {
   type    = bool
   default = true
 }
+variable "gemini_model" {
+  type        = string
+  default     = "gemini-2.5-flash"
+  description = "The Gemini AI model to use for AI tool"
+}

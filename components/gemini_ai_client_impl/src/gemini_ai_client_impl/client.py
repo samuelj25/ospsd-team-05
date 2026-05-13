@@ -2,54 +2,109 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+import re
+import time
 from typing import TYPE_CHECKING, Any, TypeAlias, cast
 
-import google.generativeai as genai
 from ai_client_api.client import AbstractAIClient
 from ai_client_api.exceptions import AIResponseError
+from google import genai
+from google.api_core.exceptions import InternalServerError
+from google.genai import types
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from ai_client_api.models import ToolDefinition, ToolResult
-    from google.generativeai import ChatSession  # type: ignore[attr-defined]
-    from google.generativeai.types import GenerateContentResponse
+    from google.genai.chats import Chat
+    from google.genai.types import GenerateContentResponse
 
 logger = logging.getLogger(__name__)
 
 _MAX_TOOL_ROUNDS = 10  # Guard against infinite tool-call loops
+_RETRY_ATTEMPTS = 3
+_SYSTEM_INSTRUCTION = (
+    "You are a concise Google Calendar assistant integrated into Slack. "
+    "Rules you must always follow:\n"
+    "- Respond ONLY with your final user-facing answer. Never output reasoning, "
+    "thinking steps, internal monologue, tool introspection, or tool lists.\n"
+    "- Be extremely concise. One or two sentences maximum.\n"
+    "- Never repeat yourself.\n"
+    "- Never lie or invent calendar data. If a tool call fails, say so plainly.\n"
+    "- The current date/time will be provided in each user message."
+)
+_THINKING_SUPPORTED_MODELS = (
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-2.5-pro",
+    "gemini-3.1-pro-preview"
+)
+_THINK_TAG_RE = re.compile(r"<\|channel\|>thought.*?<channel\|>|<think>.*?</think>", re.DOTALL)
 
+def _supports_thinking(model_name: str) -> bool:
+    """Return True only for Gemini models that accept ThinkingConfig."""
+    return any(model_name.startswith(prefix) for prefix in _THINKING_SUPPORTED_MODELS)
 
-def _to_gemini_tool(tool_def: ToolDefinition) -> genai.protos.Tool:
-    """Convert a :class:`ToolDefinition` to a Gemini ``Tool`` proto."""
-    fn = genai.protos.FunctionDeclaration(
-        name=tool_def.name,
-        description=tool_def.description,
-        parameters=genai.protos.Schema(
-            type=genai.protos.Type.OBJECT,
-            properties={
-                k: _schema_prop_to_proto(v)
-                for k, v in tool_def.parameters.get("properties", {}).items()
-            },
-            required=tool_def.parameters.get("required", []),
-        ),
+def _strip_thought_tags(text: str) -> str:
+    """Strip Gemma-style inline thought blocks from response text."""
+    return _THINK_TAG_RE.sub("", text).strip()
+
+def _to_gemini_tool(tool_def: ToolDefinition) -> types.Tool:
+    """Convert a ToolDefinition to a types.Tool."""
+    return types.Tool(
+        function_declarations=[
+            types.FunctionDeclaration(
+                name=tool_def.name,
+                description=tool_def.description,
+                parameters=types.Schema(
+                    type=types.Type.OBJECT,
+                    properties={
+                        k: _schema_prop_to_schema(v)
+                        for k, v in tool_def.parameters.get("properties", {}).items()
+                    },
+                    required=tool_def.parameters.get("required", []),
+                ),
+            )
+        ]
     )
-    return genai.protos.Tool(function_declarations=[fn])
 
 
-def _schema_prop_to_proto(prop: dict[str, Any]) -> genai.protos.Schema:
-    """Convert a single JSON Schema property dict to a Gemini Schema proto."""
-    type_map: dict[str, Any] = {
-        "string": genai.protos.Type.STRING,
-        "number": genai.protos.Type.NUMBER,
-        "integer": genai.protos.Type.INTEGER,
-        "boolean": genai.protos.Type.BOOLEAN,
+def _schema_prop_to_schema(prop: dict[str, Any]) -> types.Schema:
+    """Convert a single JSON Schema property dict to a types.Schema."""
+    type_map: dict[str, types.Type] = {
+        "string":  types.Type.STRING,
+        "number":  types.Type.NUMBER,
+        "integer": types.Type.INTEGER,
+        "boolean": types.Type.BOOLEAN,
     }
-    gemini_type = type_map.get(prop.get("type", "string"), genai.protos.Type.STRING)
-    return genai.protos.Schema(type=gemini_type, description=prop.get("description", ""))
+    gemini_type = type_map.get(prop.get("type", "string"), types.Type.STRING)
+    return types.Schema(type=gemini_type, description=prop.get("description", ""))
 
+def _tool_result_to_part(fn_name: str, result: ToolResult) -> types.Part:
+    """
+    Convert a ToolResult into a new-SDK FunctionResponse Part.
+
+    FunctionResponse.response must always be a dict. ToolResult.content is
+    a JSON string, so we parse it back out before passing it to the type.
+    """
+    try:
+        parsed = json.loads(result.content)
+    except (json.JSONDecodeError, TypeError):
+        parsed = result.content
+
+    if not isinstance(parsed, dict):
+        parsed = {"result": parsed}
+
+    return types.Part.from_function_response(name=fn_name, response=parsed)
+
+def _is_thought_part(part: types.Part) -> bool:
+    """Return True if this part is a model thought/reasoning trace."""
+    thought_attr = getattr(part, "thought", None)
+    return thought_attr is True or (isinstance(thought_attr, bool) and thought_attr)
 
 class GeminiAIClient(AbstractAIClient):
     """
@@ -80,12 +135,12 @@ class GeminiAIClient(AbstractAIClient):
         if not resolved_key:
             msg = "GEMINI_API_KEY is not set in the environment."
             raise ValueError(msg)
-        genai.configure(api_key=resolved_key) # type: ignore[attr-defined]
+        self._client = genai.Client(api_key=resolved_key)
         self._model_name = model_name
 
     def _run_tool_loop(
         self,
-        chat: ChatSession,
+        chat: Chat,
         response: GenerateContentResponse,
         tool_dispatcher: ToolDispatcher | None,
     ) -> GenerateContentResponse:
@@ -110,10 +165,10 @@ class GeminiAIClient(AbstractAIClient):
         for _ in range(_MAX_TOOL_ROUNDS):
             fn_calls = [
                 part.function_call
-                for candidate in response.candidates
-                for part in candidate.content.parts
-                if part.function_call.name  # non-empty name means it's a real call
-                and not getattr(part, "thought", False)
+                for candidate in response.candidates or []
+                for part in (candidate.content.parts if candidate.content else []) or []
+                if part.function_call and part.function_call.name
+                and not _is_thought_part(part)
             ]
 
             if not fn_calls:
@@ -125,19 +180,29 @@ class GeminiAIClient(AbstractAIClient):
 
             tool_response_parts = []
             for fn_call in fn_calls:
-                args: dict[str, Any] = dict(fn_call.args)
-                result: ToolResult = tool_dispatcher(fn_call.name, args)
-                logger.debug("Tool %s -> %s", fn_call.name, result.content)
+                args: dict[str, Any] = dict(cast("Any", fn_call.args) or {})
+                name = cast("str", fn_call.name)
+                result: ToolResult = tool_dispatcher(name, args)
+                logger.debug("Tool %s -> %s", name, result.content)
                 tool_response_parts.append(
-                    genai.protos.Part(
-                        function_response=genai.protos.FunctionResponse(
-                            name=fn_call.name,
-                            response={"result": result.content},
-                        )
-                    )
+                    _tool_result_to_part(name, result)
                 )
 
-            response = chat.send_message(tool_response_parts)
+            for attempt in range(_RETRY_ATTEMPTS):
+                try:
+                    response = chat.send_message(tool_response_parts)
+                    break
+                except InternalServerError:
+                    if attempt == _RETRY_ATTEMPTS - 1:
+                        raise
+                    wait = 2 ** attempt  # 1s, 2s
+                    logger.warning(
+                        "Gemini 500 on tool response (attempt %d/%d), retrying in %ds...",
+                        attempt + 1,
+                        _RETRY_ATTEMPTS,
+                        wait,
+                    )
+                    time.sleep(wait)
 
         return response
 
@@ -173,31 +238,50 @@ class GeminiAIClient(AbstractAIClient):
             The model's final plain-text reply.
 
         """
-        gemini_tools = [_to_gemini_tool(t) for t in tools] if tools else None
-        model = genai.GenerativeModel(  # type: ignore[attr-defined]
-            model_name=self._model_name,
+        gemini_tools = cast("Any", [_to_gemini_tool(t) for t in tools] if tools else None)
+        config = types.GenerateContentConfig(
+            system_instruction=_SYSTEM_INSTRUCTION,
             tools=gemini_tools,
+            thinking_config=types.ThinkingConfig(thinking_budget=0) if _supports_thinking(self._model_name) else None,  # noqa: E501
         )
 
-        gemini_history: list[Any] = []
+        history: list[types.Content] = []
         if context:
-            gemini_history.extend({"role": msg["role"], "parts": [msg["content"]]} for msg in context)  # noqa: E501
+            history.extend(
+                types.Content(
+                    role=msg["role"],
+                    parts=[types.Part.from_text(text=msg["content"])],
+                )
+                for msg in context
+            )
 
-        chat = model.start_chat(history=gemini_history)
+        chat = self._client.chats.create(
+            model=self._model_name,
+            config=config,
+            history=cast("Any", history),
+        )
         response = chat.send_message(prompt)
         response = self._run_tool_loop(chat, response, tool_dispatcher)
 
         # Pass 1: prefer non-thought parts
-        for candidate in response.candidates:
-            for part in candidate.content.parts:
-                if part.text and not getattr(part, "thought", None):
-                    return cast("str", part.text).strip()
+        for candidate in response.candidates or []:
+            text_parts = [
+                _strip_thought_tags(part.text)
+                for part in (candidate.content.parts if candidate.content else []) or []
+                if part.text and not _is_thought_part(part)
+            ]
+            # Filter out parts that were purely thought tags and are now empty
+            text_parts = [t for t in text_parts if t]
+            if text_parts:
+                return " ".join(text_parts)
 
-        # Pass 2: fallback — accept thought parts if there is nothing else
-        for candidate in response.candidates:
-            for part in candidate.content.parts:
+        # Pass 2: fallback
+        for candidate in response.candidates or []:
+            for part in (candidate.content.parts if candidate.content else []) or []:
                 if part.text:
-                    return cast("str", part.text).strip()
+                    cleaned = _strip_thought_tags(part.text)
+                    if cleaned:
+                        return cleaned
 
         logger.error(
             "Gemini returned a response with no extractable text: %s", response

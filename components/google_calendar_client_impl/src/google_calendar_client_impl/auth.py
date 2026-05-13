@@ -16,12 +16,16 @@ Provides two distinct authentication strategies:
 
 from __future__ import annotations
 
+import base64
+import json
 import os
 import secrets
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Final
+from typing import Any, Final, cast
 
 from google.auth.transport.requests import Request
+from google.cloud import firestore, kms
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow, InstalledAppFlow
 
@@ -37,6 +41,28 @@ _DEFAULT_CREDENTIALS_PATH: Final[str] = "credentials.json"
 #: Default path where the user's access / refresh token is cached.
 _DEFAULT_TOKEN_PATH: Final[str] = "token.json"  # noqa: S105
 
+_KMS_KEY_NAME = os.environ.get("KMS_KEY_NAME", "")
+
+def _encrypt(plaintext: str) -> str:
+    if not _KMS_KEY_NAME:
+        return plaintext
+    client = kms.KeyManagementServiceClient()
+    response = client.encrypt(
+        request={"name": _KMS_KEY_NAME, "plaintext": plaintext.encode()}
+    )
+    return base64.b64encode(response.ciphertext).decode()
+
+def _decrypt(ciphertext_b64: str) -> str:
+    if not _KMS_KEY_NAME:
+        return ciphertext_b64
+    client = kms.KeyManagementServiceClient()
+    response = client.decrypt(
+        request={
+            "name": _KMS_KEY_NAME,
+            "ciphertext": base64.b64decode(ciphertext_b64),
+        }
+    )
+    return response.plaintext.decode()
 
 def get_credentials(
     credentials_path: str | None = None,
@@ -97,7 +123,7 @@ def get_credentials(
     # ---- 2 / 3. Refresh or run the consent flow -------------------------
     if creds is None or not creds.valid:
         if creds is not None and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            creds.refresh(Request())  # type: ignore[no-untyped-call]
         else:
             if not Path(resolved_credentials).exists():
                 msg = (
@@ -140,9 +166,10 @@ class WebOAuthManager:
        access + refresh tokens and stores them under a session key.
     4. Retrieve stored credentials later via :meth:`get_credentials`.
 
-    Credentials are held in-process memory. For production a persistent store
-    (e.g. Redis, a database) should replace ``_sessions``, but for this
-    assignment in-memory is sufficient per the HW2 FAQ.
+    Credentials are persisted in Firestore when available, with an in-memory
+    fallback for local development without GCP credentials. Sessions are
+    encrypted at rest using Cloud KMS when the KMS_KEY_NAME environment
+    variable is set.
 
     Configuration is driven by environment variables so that the same code
     works in local development and on the deployed platform:
@@ -159,6 +186,7 @@ class WebOAuthManager:
         client_id: str | None = None,
         client_secret: str | None = None,
         redirect_uri: str | None = None,
+        firestore_client: firestore.Client | None = None,
     ) -> None:
         """
         Initialise the manager.
@@ -169,6 +197,7 @@ class WebOAuthManager:
                 ``GOOGLE_OAUTH_CLIENT_SECRET``.
             redirect_uri: Redirect URI registered in the OAuth application.
                 Falls back to ``OAUTH_REDIRECT_URI``.
+            firestore_client: Optional firestore client for persistence.
 
         Raises:
             ValueError: If any of the three required values cannot be resolved.
@@ -194,9 +223,10 @@ class WebOAuthManager:
             )
             raise ValueError(msg)
 
-        # In-memory session store: session_id -> Credentials
+        # In-memory fallback for local dev without GCP credentials
         self._sessions: dict[str, Credentials] = {}
         self._pending_states: set[str] = set()
+        self._db = firestore_client  # None = use in-memory fallback
 
     def _build_flow(self) -> Flow:
         """Construct a ``Flow`` instance from the stored client credentials."""
@@ -242,16 +272,28 @@ class WebOAuthManager:
         return auth_url, returned_state
 
     def register_state(self, state: str) -> None:
-        """Store an expected OAuth state token to validate at callback time."""
-        self._pending_states.add(state)
+        """Register an OAuth state token to prevent CSRF."""
+        if self._db:
+            self._db.collection("oauth_states").document(state).set({
+                "created_at": datetime.now(UTC),
+            })
+        else:
+            self._pending_states.add(state)
 
     def consume_state(self, state: str) -> bool:
-        """
-        Validate and consume an OAuth state token.
-
-        Returns True if the state was expected (CSRF check passes), False otherwise.
-        A state can only be consumed once.
-        """
+        """Consume an OAuth state token, returning True if valid."""
+        if self._db:
+            ref = self._db.collection("oauth_states").document(state)
+            doc = cast("Any", ref.get())
+            if not doc.exists:
+                return False
+            data = doc.to_dict()
+            created_at = data.get("created_at") if data else None
+            if created_at and datetime.now(UTC) - created_at > timedelta(hours=1):
+                ref.delete()
+                return False
+            ref.delete()
+            return True
         if state in self._pending_states:
             self._pending_states.discard(state)
             return True
@@ -277,7 +319,15 @@ class WebOAuthManager:
         flow.fetch_token(code=code)
         creds: Credentials = flow.credentials
         session_id = secrets.token_urlsafe(32)
-        self._sessions[session_id] = creds
+
+        if self._db:
+            self._db.collection("oauth_sessions").document(session_id).set({
+                "credentials": _encrypt(creds.to_json()),  # type: ignore[no-untyped-call]
+                "created_at": datetime.now(UTC),
+            })
+        else:
+            self._sessions[session_id] = creds
+
         return session_id, creds
 
     def get_credentials(self, session_id: str) -> Credentials | None:
@@ -292,6 +342,35 @@ class WebOAuthManager:
             session does not exist.
 
         """
+        if self._db:
+            doc = cast("Any", self._db.collection("oauth_sessions").document(session_id).get())
+            if not doc.exists:
+                return None
+
+            data = doc.to_dict()
+            if not data:
+                return None
+
+            # Enforce 7-day session TTL
+            created_at = data.get("created_at")
+            if created_at and datetime.now(UTC) - created_at > timedelta(days=7):
+                self._db.collection("oauth_sessions").document(session_id).delete()
+                return None
+
+            creds = Credentials.from_authorized_user_info(  # type: ignore[no-untyped-call]
+                json.loads(_decrypt(data["credentials"])),
+                SCOPES,
+            )
+
+            # Refresh silently if expired and persist updated token
+            if creds.expired and creds.refresh_token:
+                creds.refresh(Request())
+                self._db.collection("oauth_sessions").document(session_id).update({
+                    "credentials": _encrypt(creds.to_json()),
+                })
+
+            return cast("Credentials", creds)
+
         return self._sessions.get(session_id)
 
     def revoke_session(self, session_id: str) -> None:
@@ -302,7 +381,10 @@ class WebOAuthManager:
             session_id: The session to revoke.
 
         """
-        self._sessions.pop(session_id, None)
+        if self._db:
+            self._db.collection("oauth_sessions").document(session_id).delete()
+        else:
+            self._sessions.pop(session_id, None)
 
     def is_authenticated(self, session_id: str) -> bool:
         """
@@ -315,6 +397,8 @@ class WebOAuthManager:
             ``True`` if credentials exist for the session, ``False`` otherwise.
 
         """
+        if self._db:
+            return self.get_credentials(session_id) is not None
         return session_id in self._sessions
 
     def seed_session_from_token_file(
@@ -363,6 +447,12 @@ class WebOAuthManager:
 
         # Refresh silently if the token has expired.
         if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            creds.refresh(Request())  # type: ignore[no-untyped-call]
 
-        self._sessions[session_id] = creds
+        if self._db:
+            self._db.collection("oauth_sessions").document(session_id).set({
+                "credentials": _encrypt(creds.to_json()),  # type: ignore[no-untyped-call]
+                "created_at": datetime.now(UTC),
+            })
+        else:
+            self._sessions[session_id] = creds

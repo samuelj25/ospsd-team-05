@@ -6,7 +6,7 @@ import secrets
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from google_calendar_client_impl.auth import WebOAuthManager  # noqa: TC002
 
 from calendar_client_service.dependencies import get_oauth_manager
@@ -33,10 +33,10 @@ def login(
 @router.get("/callback", summary="Handle OAuth 2.0 callback")
 def callback(
     code: str,
-    response: Response,
+    response: Response,  # noqa: ARG001
     oauth_manager: Annotated[WebOAuthManager, Depends(get_oauth_manager)],
     state: str | None = None,
-) -> AuthStatusResponse:
+) -> HTMLResponse:
     """
     Exchange the authorization code for tokens and create a session.
 
@@ -51,8 +51,7 @@ def callback(
         state: Optional state parameter used to map the session back to a Slack user.
 
     Returns:
-        An :class:`AuthStatusResponse` with ``authenticated=True`` and the new
-        ``session_id``.
+        An :class:`HTMLResponse` containing a success message for the user.
 
     Raises:
         HTTPException(400): If the code exchange fails (e.g. code already used,
@@ -79,16 +78,42 @@ def callback(
         _, slack_user_id = state.split("::", 1)
         map_slack_user_to_session(slack_user_id, session_id)
 
+    html_content = """
+    <html>
+        <head>
+            <title>Authenticated</title>
+            <style>
+                body {
+                    font-family: sans-serif; display: flex; justify-content: center;
+                    align-items: center; height: 100vh; background-color: #f0f2f5; margin: 0;
+                }
+                .container {
+                    text-align: center; padding: 40px; background: white;
+                    border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+                }
+                h1 { color: #4CAF50; }
+                p { color: #555; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>Authentication Successful!</h1>
+                <p>You have been authenticated. You can close this page now.</p>
+            </div>
+        </body>
+    </html>
+    """
+    html_response = HTMLResponse(content=html_content)
     # Set the session_id as an HTTP-only cookie so the browser sends it
     # automatically on all subsequent requests.
-    response.set_cookie(
+    html_response.set_cookie(
         key="session_id",
         value=session_id,
         httponly=True,
         samesite="lax",
         # secure=True should be set in production (HTTPS only)
     )
-    return AuthStatusResponse(authenticated=True, session_id=session_id)
+    return html_response
 
 
 @router.get("/status", summary="Check authentication status")

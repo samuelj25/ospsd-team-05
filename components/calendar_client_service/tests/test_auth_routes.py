@@ -100,12 +100,12 @@ class TestAuthCallback:
         assert "session_id" in response.cookies
         assert response.cookies["session_id"] == "test-session-id"
 
-    def test_returns_authenticated_true_on_success(
+    def test_returns_html_on_success(
         self,
         client: TestClient,
         mock_oauth_manager: MagicMock,
     ) -> None:
-        """Callback returns authenticated=True in the body."""
+        """Callback returns an HTML success page."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
         mock_oauth_manager.consume_state.return_value = True
 
@@ -113,9 +113,9 @@ class TestAuthCallback:
             "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
         )
 
-        data = response.json()
-        assert data["authenticated"] is True
-        assert data["session_id"] == "test-session-id"
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "Authentication Successful!" in response.text
 
     def test_returns_400_when_code_exchange_fails(
         self,

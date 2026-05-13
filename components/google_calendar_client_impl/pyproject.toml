@@ -11,6 +11,8 @@ dependencies = [
     "calendar-client-api",
     "calendar-task-api",
     "ospsd-calendar-api",
+    "google-cloud-firestore>=2.19",
+    "google-cloud-kms>=3.0",
 ]
 
 

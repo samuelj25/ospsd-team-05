@@ -115,25 +115,19 @@ Below is a complete trace of a `get_event("abc")` call from user code through al
 
 ---
 
-### Current State Management Limitation
+### State Management
 
-The service currently stores some runtime state in module-level in-memory dictionaries, including `_conversation_history` and `_slack_user_sessions`. This is acceptable for the current HW3 demo and grading environment, especially if the deployed service is run as a single instance. However, this design has important limitations in a production Cloud Run deployment.
+The service uses **Firestore** as a shared external data store for persistent state, resolving limitations associated with multi-instance scaling in Cloud Run.
 
-Cloud Run can automatically scale the service to multiple instances and can also recycle idle instances. Since module-level dictionaries only exist inside a single running Python process, this means:
+**Session and Authentication Storage**
+OAuth 2.0 sessions, OAuth state tokens, and Slack user mappings are stored in Firestore collections (`oauth_sessions`, `oauth_states`, and `slack_users`). This ensures that:
+- User authentication and Slack sessions are preserved across container cold-starts and restarts.
+- Multiple Cloud Run instances share a consistent view of active sessions.
+- As an additional security measure, all OAuth credentials stored in Firestore are **encrypted at rest** using Google Cloud KMS (`KMS_KEY_NAME`), preventing plaintext tokens from being exposed in the database.
 
-- A user's conversation history may disappear if their next request is routed to a different Cloud Run instance.
-- Slack user session data may be lost when a container instance cold-starts or restarts.
-- Multiple Cloud Run instances do not share memory, so state can become inconsistent across instances.
-- This approach is not durable and should not be relied on for production persistence.
-
-A more production-ready design would move this state into a shared external data store. Possible options include:
-
-- **Firestore** for serverless document-based session and conversation storage.
-- **Memorystore / Redis** for fast shared session storage.
-- **Cloud SQL** for relational persistent state.
-- Another external database or cache managed through the existing GCP Infrastructure as Code setup.
-
-For the current assignment, this limitation is documented rather than fully addressed. The deployed demo assumes a simple single-instance flow and treats the in-memory dictionaries as temporary runtime storage.
+**In-Memory Fallbacks and Limitations**
+- **Conversation History:** The service currently stores AI chat context (`_conversation_history`) in a module-level in-memory dictionary. While sessions are durable, a user's conversation history may still disappear if their next request is routed to a different Cloud Run instance or if the instance restarts. A future enhancement could move this context to Firestore as well.
+- **Local Development:** When `GOOGLE_CLOUD_PROJECT` or GCP credentials are not present, the service gracefully falls back to using in-memory dictionaries for sessions and state, keeping local development seamless without requiring a live GCP database connection.
 
 ### Sample API Response
 

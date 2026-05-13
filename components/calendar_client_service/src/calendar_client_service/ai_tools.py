@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from ai_client_api.models import ToolDefinition, ToolResult
@@ -139,7 +139,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="get_event",
-        description="Get a single calendar event by its ID.",
+        description="Get a single calendar event by its ID. If you do not know the event_id, you MUST call list_events first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -150,7 +150,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="update_event",
-        description="Update a calendar event by its ID.",
+        description="Update a calendar event by its ID. If you do not know the event_id, you MUST call list_events first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -178,7 +178,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="delete_event",
-        description="Delete a calendar event by its ID.",
+        description="Delete a calendar event by its ID. If you do not know the event_id, you MUST call list_events first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -233,7 +233,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="get_task",
-        description="Get a single task by its ID.",
+        description="Get a single task by its ID. If you do not know the task_id, you MUST call list_tasks first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -244,7 +244,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="update_task",
-        description="Update a task's title, due date, description, or completion status.",
+        description="Update a task's title, due date, description, or completion status. If you do not know the task_id, you MUST call list_tasks first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -274,7 +274,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="delete_task",
-        description="Delete a task by its ID.",
+        description="Delete a task by its ID. If you do not know the task_id, you MUST call list_tasks first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -285,7 +285,7 @@ CALENDAR_TOOLS: list[ToolDefinition] = [
     ),
     ToolDefinition(
         name="mark_task_completed",
-        description="Mark a task as completed by its ID.",
+        description="Mark a task as completed by its ID. If you do not know the task_id, you MUST call list_tasks first to find it.",  # noqa: E501
         parameters={
             "type": "object",
             "properties": {
@@ -342,8 +342,30 @@ def _dispatch_event_tool(
     if tool_name == "delete_event":
         del_args = _DeleteEventArgs.model_validate(args)
         client.delete_event(del_args.event_id)
-        return ToolResult(tool_name=tool_name, content="Event deleted successfully.")
+        return ToolResult(
+            tool_name=tool_name,
+            content=json.dumps({"result": "Event deleted successfully."})
+        )
 
+    if tool_name == "update_event":
+        upd_args = _UpdateEventArgs.model_validate(args)
+        existing = client.get_event(upd_args.event_id)
+        updated = client.update_event(
+            event_id=upd_args.event_id,
+            title=upd_args.title if upd_args.title is not None else existing.title,
+            start_time=upd_args.start.astimezone(UTC) if upd_args.start is not None else existing.start_time, # noqa: E501
+            end_time=upd_args.end.astimezone(UTC) if upd_args.end is not None else existing.end_time, # noqa: E501
+            location=upd_args.location if upd_args.location is not None else existing.location,
+            description=upd_args.description if upd_args.description is not None else existing.description, # noqa: E501
+        )
+        return ToolResult(tool_name=tool_name, content=json.dumps({
+            "id": updated.id,
+            "title": updated.title,
+            "start": updated.start_time.isoformat(),
+            "end": updated.end_time.isoformat(),
+            "location": updated.location,
+            "description": updated.description,
+        }))
     return None  # not an event tool
 
 _TASK_COMPLETION_TOOLS = {"delete_task", "mark_task_completed"}
@@ -356,8 +378,10 @@ def _dispatch_task_tool(
 ) -> ToolResult | None:
     if tool_name == "list_tasks":
         list_task_args = _ListTasksArgs.model_validate(args)
-        start = list_task_args.start.astimezone(UTC)
-        end   = list_task_args.end.astimezone(UTC)
+        start = list_task_args.start.astimezone(UTC).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        end = (list_task_args.end.astimezone(UTC).replace(
+            hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))
         payload = [
             {
                 "id": t.id,
@@ -427,7 +451,7 @@ def _dispatch_task_tool(
             a_mc = _MarkTaskCompletedArgs.model_validate(args)
             client.mark_task_completed(a_mc.task_id)
             msg = "Task marked as completed."
-        return ToolResult(tool_name=tool_name, content=msg)
+        return ToolResult(tool_name=tool_name, content=json.dumps({"result": msg}))
 
     return None  # not a task tool
 

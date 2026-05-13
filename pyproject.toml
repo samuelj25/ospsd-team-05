@@ -60,7 +60,7 @@ module = [
     "google.auth.*",
     "google.oauth2.*",
     "google_auth_oauthlib.*",
-    "google.generativeai.*",
+    "google.genai.*",
     "calendar_client_service_api_client.*",
     "slack_sdk.*",
     "chat_client_api.*",

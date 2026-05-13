@@ -40,6 +40,8 @@ uv run uvicorn calendar_client_service.app:app --reload --port 8000 --env-file .
 | `SLACK_SIGNING_SECRET` | Slack app signing secret |
 | `GOOGLE_CLOUD_PROJECT` | GCP project ID (enables Cloud Monitoring/Trace export) |
 | `CHAT_BACKEND` | Chat backend selector (default: `"slack"`) |
+| `KMS_KEY_NAME` | Optional KMS key name for encrypting credentials |
+| `GEMINI_MODEL` | Gemini model name to use for AI tool(default: `"gemini-2.5-flash"`) |
 
 ## OAuth Flow
 

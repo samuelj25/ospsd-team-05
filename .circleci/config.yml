@@ -212,6 +212,7 @@ jobs:
             service_name   = "calendar-client-service"
             image_url      = "${IMAGE_TAG}"
             enable_service = true
+            gemini_model   = "${GEMINI_MODEL}"
             EOF
 
             terraform -chdir=infra init

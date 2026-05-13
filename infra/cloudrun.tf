@@ -59,6 +59,12 @@ resource "google_project_iam_member" "run_sa_cloud_monitoring" {
   member  = "serviceAccount:${google_service_account.cloud_run.email}"
 }
 
+resource "google_project_iam_member" "run_sa_firestore" {
+  project = var.project_id
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.cloud_run.email}"
+}
+
 # Cloud Run service — gated by enable_service for 2-step bootstrap
 resource "google_cloud_run_v2_service" "calendar_service" {
   count    = var.enable_service ? 1 : 0
@@ -142,6 +148,14 @@ resource "google_cloud_run_v2_service" "calendar_service" {
         name  = "GOOGLE_CLOUD_PROJECT"
         value = var.project_id
       }
+      env {
+        name  = "GEMINI_MODEL"
+        value = var.gemini_model
+      }
+      env {
+        name  = "KMS_KEY_NAME"
+        value = "projects/${var.project_id}/locations/${var.region}/keyRings/oauth-keyring/cryptoKeys/oauth-credentials-key"
+      }
 
       resources {
         limits = {
@@ -178,6 +192,8 @@ resource "google_cloud_run_v2_service" "calendar_service" {
     google_secret_manager_secret_iam_member.run_sa_oauth_client_secret,
     google_project_iam_member.run_sa_cloud_trace,
     google_project_iam_member.run_sa_cloud_monitoring,
+    google_project_iam_member.run_sa_firestore,
+    google_kms_crypto_key_iam_member.run_sa_kms,
   ]
 }
 

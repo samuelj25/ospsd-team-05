@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
 import time
 from http import HTTPStatus
 from typing import TYPE_CHECKING
@@ -39,6 +40,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -46,6 +48,22 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 _meter = metrics.get_meter("calendar_client_service")
+
+_window_lock = threading.Lock()
+_window_success = 0
+_window_total = 0
+
+_success_rate_gauge: metrics.ObservableGauge = _meter.create_observable_gauge(
+    name="custom.googleapis.com/http/success_rate",
+    description="Rolling success rate of HTTP requests (0.0 to 1.0)",
+    unit="1",
+    callbacks=[lambda _options: [
+        metrics.Observation(
+            (_window_success / _window_total) if _window_total > 0 else 1.0,
+            {"service": "calendar_client_service"},
+        )
+    ]],
+)
 
 _request_counter: Counter = _meter.create_counter(
     name="custom.googleapis.com/http/request_count",
@@ -91,6 +109,16 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         _request_counter.add(1, attributes)
         _latency_histogram.record(latency_ms, attributes)
 
+        with _window_lock:
+            global _window_success, _window_total  # noqa: PLW0603
+            _window_total += 1
+            if status_category == "success":
+                _window_success += 1
+            # Reset window every 1000 requests to avoid stale ratios
+            if _window_total >= 1000:  # noqa: PLR2004
+                _window_success = _window_success // 2
+                _window_total = _window_total // 2
+
         response.headers["X-Response-Time-Ms"] = f"{latency_ms:.2f}"
         return response
 
@@ -107,16 +135,16 @@ def _configure_telemetry(application: FastAPI) -> None:
     trace_exporter: ConsoleSpanExporter | CloudTraceSpanExporter | InMemorySpanExporter
     metrics_reader: PeriodicExportingMetricReader | InMemoryMetricReader
 
-    if gcp_project:
+    if "pytest" in sys.modules or os.environ.get("DISABLE_TELEMETRY"):
+        # in memory exporters for unit & integration test cases
+        trace_exporter = InMemorySpanExporter()
+        metrics_reader = InMemoryMetricReader()
+    elif gcp_project:
         trace_exporter = CloudTraceSpanExporter(project_id=gcp_project)  # type: ignore[no-untyped-call]
         metrics_exporter = CloudMonitoringMetricsExporter(project_id=gcp_project)
         metrics_reader = PeriodicExportingMetricReader(metrics_exporter)
 
         logger.info("OTel: GCP Trace & Monitoring active (project=%s).", gcp_project)
-    elif "pytest" in sys.modules:
-        # in memory exporters for unit & integration test cases
-        trace_exporter = InMemorySpanExporter()
-        metrics_reader = InMemoryMetricReader()
     else:
         trace_exporter = ConsoleSpanExporter()
         metrics_reader = PeriodicExportingMetricReader(ConsoleMetricExporter())
@@ -190,6 +218,18 @@ def create_app() -> FastAPI:
     def health() -> HealthResponse:
         """Return HTTP 200 to confirm the service is running."""
         return HealthResponse(status="ok")
+
+    # ------------------------------------------------------------------
+    # Telemetry Status
+    # ------------------------------------------------------------------
+
+    @application.get("/metrics/status", tags=["health"], summary="Telemetry status")
+    def metrics_status() -> dict[str, str]:
+        return {
+            "telemetry": "Active",
+            "backend": "Google Cloud Monitoring" if os.environ.get("GOOGLE_CLOUD_PROJECT") else "Console",  # noqa: E501
+            "project": os.environ.get("GOOGLE_CLOUD_PROJECT", "Not Set"),
+        }
 
     # ------------------------------------------------------------------
     # Routers
