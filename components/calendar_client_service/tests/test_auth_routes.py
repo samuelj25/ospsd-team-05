@@ -43,7 +43,7 @@ class TestHealth:
     def test_returns_200(self, client: TestClient) -> None:
         """Health endpoint returns HTTP 200."""
         response = client.get("/health")
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
 
     def test_returns_ok_status(self, client: TestClient) -> None:
         """Health endpoint returns {"status": "ok"}."""
@@ -62,7 +62,7 @@ class TestAuthLogin:
     def test_redirects_to_google(self, client: TestClient) -> None:
         """Login redirects to the URL returned by get_authorization_url."""
         response = client.get("/auth/login")
-        assert response.status_code == 302  # noqa: PLR2004
+        assert response.status_code == 302
         assert response.headers["location"] == "https://google.com/auth?foo=bar"
 
     def test_calls_get_authorization_url(
@@ -90,26 +90,32 @@ class TestAuthCallback:
     ) -> None:
         """Callback sets a session_id cookie when the code exchange succeeds."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
+        mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "valid-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
+        )
 
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert "session_id" in response.cookies
         assert response.cookies["session_id"] == "test-session-id"
 
-    def test_returns_authenticated_true_on_success(
+    def test_returns_html_on_success(
         self,
         client: TestClient,
         mock_oauth_manager: MagicMock,
     ) -> None:
-        """Callback returns authenticated=True in the body."""
+        """Callback returns an HTML success page."""
         mock_oauth_manager.handle_callback.return_value = ("test-session-id", MagicMock())
+        mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "valid-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "valid-token"}
+        )
 
-        data = response.json()
-        assert data["authenticated"] is True
-        assert data["session_id"] == "test-session-id"
+        assert response.status_code == 200
+        assert "text/html" in response.headers["content-type"]
+        assert "Authentication Successful!" in response.text
 
     def test_returns_400_when_code_exchange_fails(
         self,
@@ -118,11 +124,43 @@ class TestAuthCallback:
     ) -> None:
         """Callback returns HTTP 400 when handle_callback raises an exception."""
         mock_oauth_manager.handle_callback.side_effect = ValueError("bad code")
+        mock_oauth_manager.consume_state.return_value = True
 
-        response = client.get("/auth/callback", params={"code": "bad-code"})
+        response = client.get(
+            "/auth/callback", params={"code": "bad-code", "state": "valid-token"}
+        )
 
-        assert response.status_code == 400  # noqa: PLR2004
+        assert response.status_code == 400
         assert "bad code" in response.json()["detail"]
+
+    def test_returns_400_on_missing_state(
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
+    ) -> None:
+        """Callback returns HTTP 400 when no state parameter is provided."""
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code"}
+        )
+
+        assert response.status_code == 400
+        mock_oauth_manager.handle_callback.assert_not_called()
+
+    def test_returns_400_on_invalid_state(
+        self,
+        client: TestClient,
+        mock_oauth_manager: MagicMock,
+    ) -> None:
+        """Callback returns HTTP 400 when the state token fails CSRF validation."""
+        mock_oauth_manager.consume_state.return_value = False
+
+        response = client.get(
+            "/auth/callback", params={"code": "valid-code", "state": "forged-token"}
+        )
+
+        assert response.status_code == 400
+        assert "CSRF" in response.json()["detail"]
+        mock_oauth_manager.handle_callback.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -143,7 +181,7 @@ class TestAuthStatus:
 
         response = client.get("/auth/status")
 
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert response.json()["authenticated"] is False
 
     def test_authenticated_when_valid_session(
@@ -156,7 +194,7 @@ class TestAuthStatus:
 
         response = client.get("/auth/status", cookies={"session_id": "active-session"})
 
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert response.json()["authenticated"] is True
 
 
@@ -177,10 +215,10 @@ class TestAuthLogout:
         response = client.post("/auth/logout", cookies={"session_id": "my-session"})
 
         mock_oauth_manager.revoke_session.assert_called_once_with("my-session")
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200
         assert response.json()["authenticated"] is False
 
     def test_logout_without_cookie_does_not_raise(self, client: TestClient) -> None:
         """Logout without a session cookie completes without error."""
         response = client.post("/auth/logout")
-        assert response.status_code == 200  # noqa: PLR2004
+        assert response.status_code == 200

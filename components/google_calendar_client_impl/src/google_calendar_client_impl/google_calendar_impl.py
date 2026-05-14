@@ -1,8 +1,19 @@
 """
 Google Calendar Client implementation.
 
-Acts as a Translator and Gateway between the abstract ``calendar_client_api`` domain models and
-Google's specific REST structures for both the Calendar and Tasks APIs.
+Acts as a Translator and Gateway between the abstract ``calendar_client_api``
+domain models and Google's specific REST structures for both the Calendar and
+Tasks APIs.
+
+Event methods implement the ``ospsd_calendar_api.CalendarClient`` interface
+with its canonical signatures:
+
+- ``create_event(title, start, end, description="", location=None) -> Event``
+- ``update_event(event_id, **kwargs) -> Event``
+- ``list_events(start, end) -> list[Event]``
+
+Task methods are Team-05 private extensions that are not part of the shared
+cross-team contract.
 """
 
 import json
@@ -12,17 +23,19 @@ from datetime import UTC, datetime
 from typing import Any
 
 import calendar_client_api
+import calendar_task_api
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from ospsd_calendar_api.models import Event
 
 from google_calendar_client_impl.auth import get_credentials
-from google_calendar_client_impl.event_impl import GoogleCalendarEvent
+from google_calendar_client_impl.event_impl import google_dict_to_event
 from google_calendar_client_impl.task_impl import GoogleCalendarTask
 
 _NOT_CONNECTED_MSG = "Client is not connected. Call connect() first."
 
 
-class GoogleCalendarClient(calendar_client_api.Client):
+class GoogleCalendarClient(calendar_task_api.Client):
     """
     Concrete implementation of the Client abstraction using Google Calendar API.
 
@@ -118,15 +131,15 @@ class GoogleCalendarClient(calendar_client_api.Client):
         self._tasks_service = build("tasks", "v1", credentials=creds)
 
     # ------------------------------------------------------------------
-    # Events
+    # Events — implements ospsd_calendar_api.CalendarClient interface
     # ------------------------------------------------------------------
 
-    def get_event(self, event_id: str) -> calendar_client_api.Event:
+    def get_event(self, event_id: str) -> Event:
         """
         Return an event by ID from the configured calendar.
 
-        The raw JSON response from Google is passed directly into the ``GoogleCalendarEvent``
-        constructor where it is parsed and flattened into the ``Event`` interface.
+        The raw JSON response from Google is passed into ``google_dict_to_event``
+        which parses and flattens it into the canonical ``Event`` dataclass.
         """
         svc = self._require_calendar_service()
         try:
@@ -150,7 +163,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
             msg = f"Event {event_id} not found (cancelled)."
             raise calendar_client_api.EventNotFoundError(msg)
 
-        return GoogleCalendarEvent(response)
+        return google_dict_to_event(response)
 
     def _format_datetime(self, dt: datetime) -> dict[str, str]:
         """
@@ -165,39 +178,50 @@ class GoogleCalendarClient(calendar_client_api.Client):
             "timeZone": tz_name or "UTC",
         }
 
-    def _event_to_dict(
+    def _build_event_body(
         self,
-        event: calendar_client_api.Event,
+        title: str,
+        start: datetime,
+        end: datetime,
+        description: str = "",
+        location: str | None = None,
     ) -> dict[str, str | dict[str, str]]:
-        """
-        Convert a standard Event to a Google Calendar request body.
-
-        Performs the inverse translation of ``GoogleCalendarEvent``: unwraps typed properties
-        back into the nested dictionary structure that the Google Calendar API expects.
-        """
+        """Convert canonical event fields into a Google Calendar request body."""
         body: dict[str, str | dict[str, str]] = {
-            "summary": event.title,
-            "start": self._format_datetime(event.start_time),
-            "end": self._format_datetime(event.end_time),
+            "summary": title,
+            "start": self._format_datetime(start),
+            "end": self._format_datetime(end),
         }
-        if event.location is not None:
-            body["location"] = event.location
-        if event.description is not None:
-            body["description"] = event.description
+        if location is not None:
+            body["location"] = location
+        if description:
+            body["description"] = description
         return body
 
     def create_event(
         self,
-        event: calendar_client_api.Event,
-    ) -> calendar_client_api.Event:
+        title: str,
+        start: datetime,
+        end: datetime,
+        description: str = "",
+        location: str | None = None,
+    ) -> Event:
         """
         Create a new event in the configured calendar.
 
-        Translates the domain ``Event`` into a Google API request body via ``_event_to_dict``
-        and issues a POST via ``events().insert()``.
+        Args:
+            title:       Display name of the event.
+            start:       Start time (tz-aware).
+            end:         End time (tz-aware).
+            description: Optional body text.
+            location:    Optional location string.
+
+        Returns:
+            The newly created :class:`~ospsd_calendar_api.models.Event`.
+
         """
         svc = self._require_calendar_service()
-        body = self._event_to_dict(event)
+        body = self._build_event_body(title, start, end, description, location)
         response = (
             svc.events()
             .insert(
@@ -206,30 +230,44 @@ class GoogleCalendarClient(calendar_client_api.Client):
             )
             .execute()
         )
-        return GoogleCalendarEvent(response)
+        return google_dict_to_event(response)
 
-    def update_event(
-        self,
-        event: calendar_client_api.Event,
-    ) -> calendar_client_api.Event:
+    def update_event(self, event_id: str, **kwargs: Any) -> Event:  # noqa: ANN401
         """
-        Update an existing event in the configured calendar.
+        Update fields on an existing event in the configured calendar.
 
-        Issues a PUT via ``events().update()``, replacing the entire event body with the new
-        payload derived from ``_event_to_dict``.
+        Issues a PUT via ``events().update()``, replacing the event body with
+        a payload built from the provided keyword arguments.
+
+        Accepted keys: ``title``, ``start_time``, ``end_time``,
+        ``description``, ``location``.
+
+        Args:
+            event_id: The Google Calendar event ID to update.
+            **kwargs: Fields to update.
+
+        Returns:
+            The updated :class:`~ospsd_calendar_api.models.Event`.
+
         """
         svc = self._require_calendar_service()
-        body = self._event_to_dict(event)
+        body = self._build_event_body(
+            title=kwargs.get("title", ""),
+            start=kwargs["start_time"],
+            end=kwargs["end_time"],
+            description=kwargs.get("description") or "",
+            location=kwargs.get("location"),
+        )
         response = (
             svc.events()
             .update(
                 calendarId=self.calendar_id,
-                eventId=event.id,
+                eventId=event_id,
                 body=body,
             )
             .execute()
         )
-        return GoogleCalendarEvent(response)
+        return google_dict_to_event(response)
 
     def delete_event(self, event_id: str) -> None:
         """
@@ -252,27 +290,36 @@ class GoogleCalendarClient(calendar_client_api.Client):
             msg = f"HTTP Error {status}: {e}"
             raise calendar_client_api.CalendarOperationError(msg) from e
 
-    def get_events(
+    def list_events(
         self,
-        start_time: datetime,
-        end_time: datetime,
-    ) -> Iterator[calendar_client_api.Event]:
+        start: datetime,
+        end: datetime,
+    ) -> list[Event]:
         """
-        Yield events in the provided time window from the configured calendar.
+        Return all events in the provided time window from the configured calendar.
 
         Queries ``events().list()`` with ``timeMin``/``timeMax`` bounds.
-        Implements automatic pagination: enters a loop yielding ``GoogleCalendarEvent`` objects one
-        by one as a generator, and fetches the next page if ``nextPageToken`` is present.
+        Handles automatic pagination transparently and returns a flat list.
+
+        Args:
+            start: Inclusive lower bound (tz-aware).
+            end:   Exclusive upper bound (tz-aware).
+
+        Returns:
+            A list of :class:`~ospsd_calendar_api.models.Event` objects ordered
+            by ``start_time`` ascending.
+
         """
         svc = self._require_calendar_service()
+        results: list[Event] = []
         page_token = None
         while True:
             events_result = (
                 svc.events()
                 .list(
                     calendarId=self.calendar_id,
-                    timeMin=start_time.isoformat(),
-                    timeMax=end_time.isoformat(),
+                    timeMin=start.isoformat(),
+                    timeMax=end.isoformat(),
                     singleEvents=True,
                     orderBy="startTime",
                     pageToken=page_token,
@@ -280,27 +327,28 @@ class GoogleCalendarClient(calendar_client_api.Client):
                 .execute()
             )
 
-            for event in events_result.get("items", []):
-                yield GoogleCalendarEvent(event)
+            results.extend(google_dict_to_event(event) for event in events_result.get("items", []))
 
             page_token = events_result.get("nextPageToken")
             if not page_token:
                 break
 
-    def from_raw_data(self, raw_data: str) -> calendar_client_api.Event:
+        return results
+
+    def from_raw_data(self, raw_data: str) -> Event:
         """
         Construct an Event from raw JSON without making an API call.
 
         Useful for reconstructing events from a database cache or webhook payload.
         """
         data = json.loads(raw_data)
-        return GoogleCalendarEvent(data)
+        return google_dict_to_event(data)
 
     # ------------------------------------------------------------------
-    # Tasks
+    # Tasks — Team-05 private extension
     # ------------------------------------------------------------------
 
-    def get_task(self, task_id: str) -> calendar_client_api.Task:
+    def get_task(self, task_id: str) -> calendar_task_api.Task:
         """
         Return a task by ID.
 
@@ -322,74 +370,76 @@ class GoogleCalendarClient(calendar_client_api.Client):
             status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
             if status in (404, 410):
                 msg = f"Task {task_id} not found."
-                raise calendar_client_api.TaskNotFoundError(msg) from e
+                raise calendar_task_api.TaskNotFoundError(msg) from e
             msg = f"HTTP Error {status}: {e}"
             raise calendar_client_api.CalendarOperationError(msg) from e
 
         if response.get("deleted") is True or response.get("hidden") is True:
             msg = f"Task {task_id} not found (deleted/hidden)."
-            raise calendar_client_api.TaskNotFoundError(msg)
+            raise calendar_task_api.TaskNotFoundError(msg)
 
         return GoogleCalendarTask(response)
 
-    def _task_to_dict(self, task: calendar_client_api.Task) -> dict[str, str]:
-        """
-        Convert a standard Task to a Google Tasks request body.
-
-        Google Tasks requires RFC 3339 timestamps ending in ``.000Z`` (UTC). This helper converts
-        the ``end_time`` to UTC, strips timezone info, and formats with the required suffix.
-        """
-        # Google Tasks API requires RFC 3339 with trailing Z (UTC).
-        # Convert to UTC, strip tzinfo, then format with .000Z suffix.
-        due_dt = task.end_time
-        if due_dt.tzinfo is not None:
-            due_dt = due_dt.astimezone(tz=UTC).replace(tzinfo=None)
-        body: dict[str, str] = {
-            "title": task.title,
-            "due": due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-            "status": "completed" if task.is_completed else "needsAction",
-        }
-        if task.description is not None:
-            body["notes"] = task.description
-        return body
-
-    def create_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
-        """
-        Create a new task.
-
-        Translates the domain ``Task`` into RFC 3339 format via ``_task_to_dict`` and issues a POST
-        via ``tasks().insert()``.
-        """
+    def create_task(
+        self,
+        title: str,
+        due: datetime | None = None,
+        description: str | None = None,
+    ) -> calendar_task_api.Task:
+        """Create a new task."""
         svc = self._require_tasks_service()
-        body = self._task_to_dict(task)
-        response = (
-            svc.tasks()
-            .insert(
-                tasklist=self.tasklist_id,
-                body=body,
-            )
-            .execute()
-        )
+        body: dict[str, str] = {
+            "title": title,
+            "status": "needsAction",
+        }
+
+        if due is not None:
+            due_dt = due.astimezone(tz=UTC).replace(tzinfo=None) if due.tzinfo else due
+            body["due"] = due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+        if description is not None:
+            body["notes"] = description
+
+        response = svc.tasks().insert(tasklist=self.tasklist_id, body=body).execute()
         return GoogleCalendarTask(response)
 
-    def update_task(self, task: calendar_client_api.Task) -> calendar_client_api.Task:
+    def update_task(
+        self,
+        task_id: str,
+        *,
+        title: str | None = None,
+        due: datetime | None = None,
+        description: str | None = None,
+        is_completed: bool | None = None,
+    ) -> calendar_task_api.Task:
         """
         Update an existing task.
 
-        Injects ``task.id`` back into the request body and issues a PUT via ``tasks().update()``.
+        Uses a read-modify-write pattern to preserve existing properties while
+        patching only the provided fields.
         """
         svc = self._require_tasks_service()
-        body = self._task_to_dict(task)
-        body["id"] = task.id
-        response = (
-            svc.tasks()
-            .update(
-                tasklist=self.tasklist_id,
-                task=task.id,
-                body=body,
-            )
-            .execute()
-        )
+
+        # 1. Fetch existing
+        existing = svc.tasks().get(tasklist=self.tasklist_id, task=task_id).execute()
+
+        # 2. Patch fields
+        if title is not None:
+            existing["title"] = title
+        if due is not None:
+            due_dt = due.astimezone(tz=UTC).replace(tzinfo=None) if due.tzinfo else due
+            existing["due"] = due_dt.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+        if description is not None:
+            existing["notes"] = description
+        if is_completed is not None:
+            existing["status"] = "completed" if is_completed else "needsAction"
+
+        # 3. Put back
+        response = svc.tasks().update(
+            tasklist=self.tasklist_id,
+            task=task_id,
+            body=existing,
+        ).execute()
         return GoogleCalendarTask(response)
 
     def delete_task(self, task_id: str) -> None:
@@ -404,7 +454,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
             status = getattr(e, "status_code", e.resp.status if hasattr(e, "resp") else None)
             if status in (404, 410):
                 msg = f"Task {task_id} not found."
-                raise calendar_client_api.TaskNotFoundError(msg) from e
+                raise calendar_task_api.TaskNotFoundError(msg) from e
             msg = f"HTTP Error {status}: {e}"
             raise calendar_client_api.CalendarOperationError(msg) from e
 
@@ -412,7 +462,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         self,
         start_time: datetime,
         end_time: datetime,
-    ) -> Iterator[calendar_client_api.Task]:
+    ) -> Iterator[calendar_task_api.Task]:
         """
         Yield tasks in the provided time window.
 
@@ -470,7 +520,7 @@ class GoogleCalendarClient(calendar_client_api.Client):
         ).execute()
 
 
-def get_client_impl() -> calendar_client_api.Client:
+def get_client_impl() -> calendar_task_api.Client:
     """Return a configured GoogleCalendarClient instance."""
     return GoogleCalendarClient()
 
@@ -479,7 +529,7 @@ def register() -> None:
     """
     Register the Google Calendar client implementation.
 
-    Overwrites ``calendar_client_api.get_client`` to point to this module's
+    Overwrites ``calendar_task_api.get_client`` to point to this module's
     ``get_client_impl``, enabling dependency injection.
     """
-    calendar_client_api.get_client = get_client_impl
+    calendar_task_api.get_client = get_client_impl

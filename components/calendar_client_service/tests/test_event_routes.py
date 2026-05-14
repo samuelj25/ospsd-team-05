@@ -38,9 +38,6 @@ def make_mock_event(
     return e
 
 
-
-
-
 @pytest.fixture
 def mock_calendar_client() -> MagicMock:
     """Return a mock GoogleCalendarClient."""
@@ -55,14 +52,12 @@ def client(mock_calendar_client: MagicMock) -> TestClient:
     return TestClient(app)
 
 
-
-
 class TestListEvents:
     """Tests for GET /events."""
 
     def test_returns_200(self, client: TestClient, mock_calendar_client: MagicMock) -> None:
         """List events returns HTTP 200."""
-        mock_calendar_client.get_events.return_value = []
+        mock_calendar_client.list_events.return_value = []
         response = client.get("/events", params={"start_time": START_STR, "end_time": END_STR})
         assert response.status_code == STAT_CODE_200
 
@@ -70,7 +65,7 @@ class TestListEvents:
         self, client: TestClient, mock_calendar_client: MagicMock
     ) -> None:
         """List events returns a list of serialized event objects."""
-        mock_calendar_client.get_events.return_value = [make_mock_event()]
+        mock_calendar_client.list_events.return_value = [make_mock_event()]
         response = client.get("/events", params={"start_time": START_STR, "end_time": END_STR})
         data = response.json()
         assert len(data) == 1
@@ -81,7 +76,7 @@ class TestListEvents:
         self, client: TestClient, mock_calendar_client: MagicMock
     ) -> None:
         """List events returns an empty list when no events exist in range."""
-        mock_calendar_client.get_events.return_value = []
+        mock_calendar_client.list_events.return_value = []
         response = client.get("/events", params={"start_time": START_STR, "end_time": END_STR})
         assert response.json() == []
 
@@ -89,17 +84,14 @@ class TestListEvents:
         self, client: TestClient, mock_calendar_client: MagicMock
     ) -> None:
         """List events passes start_time and end_time to the client."""
-        mock_calendar_client.get_events.return_value = []
+        mock_calendar_client.list_events.return_value = []
         client.get("/events", params={"start_time": START_STR, "end_time": END_STR})
-        mock_calendar_client.get_events.assert_called_once()
+        mock_calendar_client.list_events.assert_called_once()
 
     def test_returns_422_when_missing_params(self, client: TestClient) -> None:
         """List events returns HTTP 422 when query params are missing."""
         response = client.get("/events")
         assert response.status_code == STAT_CODE_422
-
-
-
 
 
 class TestGetEvent:
@@ -142,9 +134,6 @@ class TestGetEvent:
         data = response.json()
         assert data["location"] is None
         assert data["description"] is None
-
-
-
 
 
 class TestCreateEvent:
@@ -207,9 +196,6 @@ class TestCreateEvent:
         assert response.status_code == STAT_CODE_201
 
 
-
-
-
 class TestUpdateEvent:
     """Tests for PUT /events/{event_id}."""
 
@@ -263,8 +249,6 @@ class TestUpdateEvent:
         """Update event returns HTTP 422 when required fields are missing."""
         response = client.put("/events/evt-1", json={"title": "No Times"})
         assert response.status_code == STAT_CODE_422
-
-
 
 
 class TestDeleteEvent:

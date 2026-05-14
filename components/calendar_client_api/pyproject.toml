@@ -4,7 +4,9 @@ version = "0.1.0"
 description = "calendar client api"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "ospsd-calendar-api",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -23,3 +25,6 @@ extend = "../../pyproject.toml"
 
 [tool.ruff.lint]
 ignore = []
+
+[tool.uv.sources]
+ospsd-calendar-api = { git = "https://github.com/DeMoliT1on/ospsd-calendar-api" }

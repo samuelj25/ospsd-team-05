@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from calendar_client_api import task
+from calendar_task_api import task
 
 from google_calendar_client_impl import task_impl
 
@@ -128,12 +128,14 @@ class TestValidation:
         with pytest.raises(TypeError, match=r"'title'"):
             task_impl.GoogleCalendarTask(raw)
 
-    def test_missing_due_raises(self) -> None:
-        """Verify error if 'due' field is missing from task data."""
+    def test_missing_due_returns_none(self) -> None:
+        """Verify start_time and end_time are None if 'due' and 'updated' are omitted."""
         raw = _make_raw()
         del raw["due"]
-        with pytest.raises(TypeError, match=r"'due'"):
-            task_impl.GoogleCalendarTask(raw)
+        del raw["updated"]
+        t = task_impl.GoogleCalendarTask(raw)
+        assert t.start_time is None
+        assert t.end_time is None
 
     def test_invalid_json_string_raises(self) -> None:
         """Verify error if constructor is given a string that isn't valid JSON."""

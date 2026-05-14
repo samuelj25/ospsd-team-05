@@ -1,0 +1,66 @@
+interactions:
+- request:
+    body: '{"summary": "Team Standup", "start": {"dateTime": "2026-05-12T09:00:00+00:00",
+      "timeZone": "UTC"}, "end": {"dateTime": "2026-05-12T09:30:00+00:00", "timeZone":
+      "UTC"}}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      content-length:
+      - '167'
+      content-type:
+      - application/json
+      user-agent:
+      - (gzip)
+    method: POST
+    uri: https://www.googleapis.com/calendar/v3/calendars/primary/events?alt=json
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAC/6WS32vbMBDH3/1XGO91Sc6/G8NYoV3LYNnY6tDW9EWzzo6wJbuylLQp/d8nKQ2l
+        L91goBfpPve9753uyfODjgkaFH5Qkx4FJfIDblGo4KMJoSKtDd0FcZpmyyTP4hTC6GSZ3AUOYC6T
+        bNMOc9WNMVkOeRjnOkyGZXbPagdNiig9uRKDaJjkSN37RvH+GxOdjWyUGqdisdjtdvN2GNoe5/XA
+        F0dPC+fpMzL66fbmNiTROqaXareKvqS/9/XDak/DVflr+6OsHsj1qq14CxW/kNXNd6iuL9TPS3AV
+        a4lEofMcQZTNIJ2FYQlJEUMR5nMAqBynR/oel0J24CbNOZGPliuRcP9KEUH1+FprkCb25PlmlJyw
+        3oLNJmlIh5MyCaetfbWd2hSjh31jGCU1ev6zVRlkSwTb4//qmD+Q6qhhmysZxzf9RSWkBYA5M9Mo
+        wEFJGawahEPX5VnwIoduZf4iFv+jGDsj/frr+fubdPq6FYfR471GUVstsHeJ3OwxyunoS094jg3R
+        vXo7CbdJ5ePoXNAXwnv2/gC1Kj2yCwMAAA==
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Cache-Control:
+      - no-cache, no-store, max-age=0, must-revalidate
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json; charset=UTF-8
+      Date:
+      - Mon, 11 May 2026 04:30:17 GMT
+      ETag:
+      - '"3556947635012894"'
+      Expires:
+      - Mon, 01 Jan 1990 00:00:00 GMT
+      Pragma:
+      - no-cache
+      Server:
+      - ESF
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin
+      - X-Origin
+      - Referer
+      X-Content-Type-Options:
+      - nosniff
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - '0'
+      x-l2-request-path:
+      - l2-managed-14
+    status:
+      code: 200
+      message: OK
+version: 1

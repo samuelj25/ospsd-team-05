@@ -5,54 +5,13 @@ from __future__ import annotations
 from datetime import datetime  # noqa: TC003
 from typing import Annotated
 
-from calendar_client_api.event import Event
 from fastapi import APIRouter, Depends, HTTPException
 from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient  # noqa: TC002
+from ospsd_calendar_api.models import Event  # noqa: TC002
 
 from calendar_client_service.dependencies import get_calendar_client
 from calendar_client_service.models import EventCreate, EventResponse, EventUpdate
 
-
-class _ServiceEvent(Event):
-    def __init__(  # noqa: PLR0913
-        self,
-        e_id: str,
-        title: str,
-        start: datetime,
-        end: datetime,
-        loc: str | None,
-        desc: str | None,
-    ) -> None:
-        self._id = e_id
-        self._title = title
-        self._start = start
-        self._end = end
-        self._loc = loc
-        self._desc = desc
-
-    @property
-    def id(self) -> str:
-        return self._id
-
-    @property
-    def title(self) -> str:
-        return self._title
-
-    @property
-    def start_time(self) -> datetime:
-        return self._start
-
-    @property
-    def end_time(self) -> datetime:
-        return self._end
-
-    @property
-    def location(self) -> str | None:
-        return self._loc
-
-    @property
-    def description(self) -> str | None:
-        return self._desc
 
 def _to_event_response(e: Event) -> EventResponse:
     return EventResponse(
@@ -64,6 +23,7 @@ def _to_event_response(e: Event) -> EventResponse:
         description=e.description,
     )
 
+
 router = APIRouter(prefix="/events", tags=["events"])
 
 
@@ -74,7 +34,7 @@ def list_events(
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> list[EventResponse]:
     """Return all events between ``start_time`` and ``end_time``."""
-    events = client.get_events(start_time, end_time)
+    events = client.list_events(start_time, end_time)
     return [_to_event_response(e) for e in events]
 
 
@@ -94,15 +54,13 @@ def create_event(
     client: Annotated[GoogleCalendarClient, Depends(get_calendar_client)],
 ) -> EventResponse:
     """Create a new event from ``payload``."""
-    ev = _ServiceEvent(
-        e_id="",
+    e = client.create_event(
         title=payload.title,
         start=payload.start_time,
         end=payload.end_time,
-        loc=payload.location,
-        desc=payload.description,
+        description=payload.description or "",
+        location=payload.location,
     )
-    e = client.create_event(ev)
     return _to_event_response(e)
 
 
@@ -115,15 +73,14 @@ def update_event(
     """Update the event identified by ``event_id`` with data from ``payload``."""
     if event_id != payload.id:
         raise HTTPException(status_code=422, detail="Event ID in path and payload must match")
-    ev = _ServiceEvent(
-        e_id=payload.id,
+    e = client.update_event(
+        event_id,
         title=payload.title,
-        start=payload.start_time,
-        end=payload.end_time,
-        loc=payload.location,
-        desc=payload.description,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+        location=payload.location,
+        description=payload.description,
     )
-    e = client.update_event(ev)
     return _to_event_response(e)
 
 

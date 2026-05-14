@@ -1,4 +1,19 @@
-"""Event contract - Core event representation."""
+"""
+Event contract - Core event representation.
+
+.. deprecated::
+    This module is **superseded** by ``ospsd_calendar_api.models.Event`` (a
+    concrete ``@dataclass``), which is now the canonical ``Event`` type used
+    across all layers of the stack.
+
+    This file is retained for historical reference only and is **no longer
+    imported or used** by any active code in this repository.  New code should
+    import ``Event`` from ``ospsd_calendar_api`` directly, or via the
+    ``calendar_client_api`` package re-export::
+
+        from calendar_client_api import Event        # dataclass from ospsd_calendar_api
+        from ospsd_calendar_api.models import Event  # direct import
+"""
 
 from abc import ABC, abstractmethod
 from datetime import datetime

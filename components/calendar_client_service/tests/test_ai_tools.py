@@ -1,0 +1,318 @@
+"""Unit tests for AI tools dispatching and processing."""
+
+import json
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
+
+import pytest
+from google_calendar_client_impl.google_calendar_impl import GoogleCalendarClient
+from ospsd_calendar_api.exceptions import CalendarOperationError, EventNotFoundError
+
+from calendar_client_service.ai_tools import dispatch_tool_call
+
+
+@pytest.fixture
+def mock_calendar_client() -> MagicMock:
+    """Fixture providing a mock GoogleCalendarClient."""
+    return MagicMock(spec=GoogleCalendarClient)
+
+
+def create_mock_event( # noqa: PLR0913
+    event_id: str,
+    title: str,
+    start_time: datetime,
+    end_time: datetime,
+    description: str = "",
+    location: str = "",
+) -> MagicMock:
+    """Create a mock event object for testing."""
+    mock_event = MagicMock()
+    mock_event.id = event_id
+    mock_event.title = title
+    mock_event.start_time = start_time
+    mock_event.end_time = end_time
+    mock_event.description = description
+    mock_event.location = location
+    return mock_event
+
+
+def test_dispatch_tool_call_list_events(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the list_events tool."""
+    mock_event = create_mock_event(
+        event_id="123",
+        title="Test Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        description="Test Desc",
+    )
+    mock_calendar_client.list_events.return_value = [mock_event]
+
+    args = {
+        "start": "2026-04-23T00:00:00Z",
+        "end": "2026-04-24T00:00:00Z"
+    }
+    result = dispatch_tool_call("list_events", args, mock_calendar_client)
+
+    assert result.tool_name == "list_events"
+    assert not result.is_error
+
+    content = json.loads(result.content)
+    assert len(content) == 1
+    assert content[0]["id"] == "123"
+    assert content[0]["title"] == "Test Event"
+    assert content[0]["description"] == "Test Desc"
+
+
+def test_dispatch_tool_call_create_event(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the create_event tool without a location."""
+    mock_event = create_mock_event(
+        event_id="456",
+        title="New Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        description="New Desc",
+        location="",
+    )
+    mock_calendar_client.create_event.return_value = mock_event
+
+    args = {
+        "title": "New Event",
+        "start": "2026-04-23T10:00:00Z",
+        "end": "2026-04-23T11:00:00Z",
+        "description": "New Desc",
+    }
+    result = dispatch_tool_call("create_event", args, mock_calendar_client)
+
+    assert result.tool_name == "create_event"
+    assert not result.is_error
+
+    content = json.loads(result.content)
+    assert content["id"] == "456"
+    assert content["title"] == "New Event"
+    assert content["location"] == ""
+    mock_calendar_client.create_event.assert_called_once_with(
+        title="New Event",
+        start=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        location="",
+        description="New Desc",
+    )
+
+
+def test_dispatch_tool_call_create_event_with_location(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the create_event tool with an explicit location."""
+    mock_event = create_mock_event(
+        event_id="457",
+        title="Located Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        location="Room 42",
+    )
+    mock_calendar_client.create_event.return_value = mock_event
+
+    args = {
+        "title": "Located Event",
+        "start": "2026-04-23T10:00:00Z",
+        "end": "2026-04-23T11:00:00Z",
+        "location": "Room 42",
+    }
+    result = dispatch_tool_call("create_event", args, mock_calendar_client)
+
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert content["location"] == "Room 42"
+    mock_calendar_client.create_event.assert_called_once_with(
+        title="Located Event",
+        start=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        location="Room 42",
+        description="",
+    )
+
+
+def test_dispatch_tool_call_get_event(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the get_event tool."""
+    mock_event = create_mock_event(
+        event_id="789",
+        title="Get Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        description="Get Desc",
+    )
+    mock_calendar_client.get_event.return_value = mock_event
+
+    args = {"event_id": "789"}
+    result = dispatch_tool_call("get_event", args, mock_calendar_client)
+
+    assert result.tool_name == "get_event"
+    assert not result.is_error
+
+    content = json.loads(result.content)
+    assert content["id"] == "789"
+    assert content["title"] == "Get Event"
+    assert content["description"] == "Get Desc"
+
+
+def test_dispatch_tool_call_delete_event(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the delete_event tool."""
+    args = {"event_id": "101"}
+    result = dispatch_tool_call("delete_event", args, mock_calendar_client)
+
+    assert result.tool_name == "delete_event"
+    assert not result.is_error
+    assert result.content == '{"result": "Event deleted successfully."}'
+    mock_calendar_client.delete_event.assert_called_once_with("101")
+
+
+def test_dispatch_tool_call_unknown_tool(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching an unknown tool returns an error."""
+    result = dispatch_tool_call("unknown_tool", {}, mock_calendar_client)
+
+    assert result.tool_name == "unknown_tool"
+    assert result.is_error
+    assert "Unknown tool" in result.content
+
+
+def test_dispatch_tool_call_exception(mock_calendar_client: MagicMock) -> None:
+    """Test that CalendarOperationError is caught and returned as a typed error."""
+    mock_calendar_client.get_event.side_effect = CalendarOperationError("API is down")
+
+    args = {"event_id": "789"}
+    result = dispatch_tool_call("get_event", args, mock_calendar_client)
+
+    assert result.tool_name == "get_event"
+    assert result.is_error
+    payload = json.loads(result.content)
+    assert payload["error_category"] == "api_error"
+    assert "API is down" in payload["detail"]
+
+def test_dispatch_tool_call_event_not_found(mock_calendar_client: MagicMock) -> None:
+    """Test that EventNotFoundError maps to the not_found error category."""
+    mock_calendar_client.get_event.side_effect = EventNotFoundError("event 789 not found")
+
+    result = dispatch_tool_call("get_event", {"event_id": "789"}, mock_calendar_client)
+
+    assert result.is_error
+    payload = json.loads(result.content)
+    assert payload["error_category"] == "not_found"
+
+def test_dispatch_tool_call_invalid_args(mock_calendar_client: MagicMock) -> None:
+    """Test that bad ISO date strings map to the invalid_argument error category."""
+    result = dispatch_tool_call(
+        "list_events",
+        {"start": "not-a-date", "end": "also-not-a-date"},
+        mock_calendar_client,
+    )
+
+    assert result.is_error
+    payload = json.loads(result.content)
+    assert payload["error_category"] == "invalid_argument"
+
+def create_mock_task(
+    task_id: str,
+    title: str,
+    *,
+    end_time: datetime | None = None,
+    description: str = "",
+    is_completed: bool = False,
+) -> MagicMock:
+    """Create a mock task object for testing."""
+    mock_task = MagicMock()
+    mock_task.id = task_id
+    mock_task.title = title
+    mock_task.end_time = end_time
+    mock_task.description = description
+    mock_task.is_completed = is_completed
+    return mock_task
+
+def test_dispatch_tool_call_update_event(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the update_event tool."""
+    mock_event = create_mock_event(
+        event_id="789",
+        title="Old Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        description="Old Desc",
+    )
+    mock_calendar_client.get_event.return_value = mock_event
+    mock_calendar_client.update_event.return_value = create_mock_event(
+        event_id="789",
+        title="Updated Event",
+        start_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC),
+        end_time=datetime(2026, 4, 23, 11, 0, tzinfo=UTC),
+        description="New Desc",
+    )
+    args = {"event_id": "789", "title": "Updated Event", "description": "New Desc"}
+    result = dispatch_tool_call("update_event", args, mock_calendar_client)
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert content["title"] == "Updated Event"
+    assert content["description"] == "New Desc"
+
+def test_dispatch_tool_call_list_tasks(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the list_tasks tool."""
+    mock_task = create_mock_task(
+        task_id="t1",
+        title="Task 1",
+        end_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC)
+    )
+    mock_calendar_client.get_tasks.return_value = [mock_task]
+    args = {"start": "2026-04-23T00:00:00Z", "end": "2026-04-24T00:00:00Z"}
+    result = dispatch_tool_call("list_tasks", args, mock_calendar_client)
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert len(content) == 1
+    assert content[0]["id"] == "t1"
+
+def test_dispatch_tool_call_create_task(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the create_task tool."""
+    mock_task = create_mock_task(
+        task_id="t2",
+        title="Task 2",
+        end_time=datetime(2026, 4, 23, 10, 0, tzinfo=UTC)
+    )
+    mock_calendar_client.create_task.return_value = mock_task
+    args = {"title": "Task 2", "due": "2026-04-23T10:00:00Z", "description": "Notes"}
+    result = dispatch_tool_call("create_task", args, mock_calendar_client)
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert content["id"] == "t2"
+
+def test_dispatch_tool_call_get_task(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the get_task tool."""
+    mock_task = create_mock_task(task_id="t3", title="Task 3")
+    mock_calendar_client.get_task.return_value = mock_task
+    args = {"task_id": "t3"}
+    result = dispatch_tool_call("get_task", args, mock_calendar_client)
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert content["id"] == "t3"
+
+def test_dispatch_tool_call_update_task(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the update_task tool."""
+    mock_task = create_mock_task(task_id="t4", title="Task 4")
+    mock_calendar_client.get_task.return_value = mock_task
+    mock_calendar_client.update_task.return_value = create_mock_task(
+        task_id="t4",
+        title="Task 4 Updated",
+        is_completed=True
+    )
+    args = {"task_id": "t4", "title": "Task 4 Updated", "is_completed": True}
+    result = dispatch_tool_call("update_task", args, mock_calendar_client)
+    assert not result.is_error
+    content = json.loads(result.content)
+    assert content["title"] == "Task 4 Updated"
+
+def test_dispatch_tool_call_delete_task(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the delete_task tool."""
+    args = {"task_id": "t5"}
+    result = dispatch_tool_call("delete_task", args, mock_calendar_client)
+    assert not result.is_error
+    mock_calendar_client.delete_task.assert_called_once_with("t5")
+
+def test_dispatch_tool_call_mark_task_completed(mock_calendar_client: MagicMock) -> None:
+    """Test dispatching the mark_task_completed tool."""
+    args = {"task_id": "t6"}
+    result = dispatch_tool_call("mark_task_completed", args, mock_calendar_client)
+    assert not result.is_error
+    mock_calendar_client.mark_task_completed.assert_called_once_with("t6")

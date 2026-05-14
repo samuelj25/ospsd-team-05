@@ -10,6 +10,8 @@ Thank you for your interest in contributing to the Google Calendar Client projec
 - `uv` package manager ([install instructions](https://docs.astral.sh/uv/getting-started/installation/))
 - A Google Cloud project with the Calendar API and Tasks API enabled
 - OAuth 2.0 credentials (Client ID and Client Secret) from the Google Cloud Console
+- A Slack app with a Bot token and signing secret (for AI/Slack features)
+- A Gemini API key from Google AI Studio (for AI features)
 
 ### Setting Up Your Development Environment
 
@@ -25,16 +27,19 @@ Thank you for your interest in contributing to the Google Calendar Client projec
    ```
 
 3. **Set up credentials:**
-   Export your Google OAuth credentials as environment variables. Never commit secrets to version control.
+   Export your credentials as environment variables or place them in a `.env` file. Never commit secrets to version control.
    ```bash
    export GOOGLE_OAUTH_CLIENT_ID=your-client-id
    export GOOGLE_OAUTH_CLIENT_SECRET=your-client-secret
    export OAUTH_REDIRECT_URI=http://localhost:8000/auth/callback
+   export GEMINI_API_KEY=your-gemini-api-key
+   export SLACK_BOT_TOKEN=xoxb-your-bot-token
+   export SLACK_SIGNING_SECRET=your-signing-secret
    ```
 
 4. **Run the service locally:**
    ```bash
-   uv run uvicorn calendar_client_service.app:app --reload --port 8000
+   uv run uvicorn calendar_client_service.app:app --reload --port 8000 --env-file .env
    ```
    Navigate to `http://localhost:8000/auth/login` to complete the OAuth flow.
 
@@ -50,26 +55,30 @@ Thank you for your interest in contributing to the Google Calendar Client projec
 ```
 ospsd-team-05/
 ├── components/
-│   ├── calendar_client_api/              # Abstract interface (ABC)
+│   ├── calendar_client_api/              # Abstract interface (aligned to shared API)
 │   │   ├── src/calendar_client_api/      # Source code
 │   │   └── tests/                        # Unit tests
 │   ├── google_calendar_client_impl/      # Concrete Google Calendar implementation
 │   │   ├── src/google_calendar_client_impl/  # Source code
 │   │   └── tests/                        # Unit tests
-│   ├── calendar_client_service/          # FastAPI HTTP service
+│   ├── calendar_client_service/          # FastAPI HTTP service (events, tasks, Slack/AI, auth)
 │   │   ├── src/calendar_client_service/  # Source code
 │   │   └── tests/                        # Unit tests
 │   ├── calendar_client_service_api_client/  # Auto-generated HTTP client
 │   │   ├── calendar_client_service_api_client/  # Source code
 │   │   └── tests/                        # Smoke tests
-│   └── calendar_client_adapter/          # Adapter: Client interface → HTTP client
-│       ├── src/calendar_client_adapter/  # Source code
-│       └── tests/                        # Unit and integration tests
+│   ├── calendar_client_adapter/          # Adapter: Client interface → HTTP client
+│   │   ├── src/calendar_client_adapter/  # Source code
+│   │   └── tests/                        # Unit and integration tests
+│   ├── slack_chat_adapter/              # HW3: ChatClient interface → Slack Web API
+│   ├── ai_client_api/                   # HW3: Abstract AI client interface
+│   └── gemini_ai_client_impl/           # HW3: Gemini-backed AI client implementation
+├── infra/                                # Terraform IaC (Cloud Run, Secret Manager, IAM)
 ├── tests/                                # Cross-component tests
-│   ├── integration/
-│   └── e2e/
-├── docs/                                 # MkDocs documentation
-├── Dockerfile                            # Container definition for Render deployment
+│   ├── integration/                      # Component integration tests (incl. VCR cassettes)
+│   └── e2e/                              # End-to-end tests against live Google APIs
+├── docs/                                 # MkDocs documentation source
+├── Dockerfile                            # Container definition for Cloud Run deployment
 ├── pyproject.toml                        # Root workspace config
 └── mkdocs.yml                            # Documentation config
 ```
@@ -148,8 +157,8 @@ uv run pytest
 ### Test Categories
 
 - **Unit tests** (`components/*/tests/`): Fast, isolated, deterministic. Mock all external API calls. No test should depend on another.
-- **Integration tests** (`tests/integration/`): Verify dependency injection and component interaction.
-- **End-to-end tests** (`tests/e2e/`): Run against the live deployed service and real Google APIs with test credentials.
+- **Integration tests** (`tests/integration/`): Verify dependency injection and component interaction. HTTP interactions with AI APIs are recorded via VCR cassettes and replayed in CI.
+- **End-to-end tests** (`tests/e2e/`): Run against the live deployed service and real Google APIs with test credentials. Marked with `@pytest.mark.e2e`.
 
 ### Writing Tests
 
@@ -157,6 +166,7 @@ uv run pytest
 - Do not add `__init__.py` to test directories.
 - Use `pytest` fixtures for shared setup.
 - Mock external dependencies — unit tests must not make real API calls.
+- For AI tool dispatch tests, use VCR cassettes (`--record-mode=new_episodes` to re-record).
 - Mark intentionally untestable lines with `# pragma: no cover`.
 - Aim to meet or exceed the 85% coverage threshold.
 
@@ -186,6 +196,12 @@ When adding or modifying a component, update the corresponding documentation in 
 | `GOOGLE_OAUTH_CLIENT_ID` | OAuth 2.0 Client ID from GCP Console | — |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth 2.0 Client Secret from GCP Console | — |
 | `OAUTH_REDIRECT_URI` | OAuth callback URL | `http://localhost:8000/auth/callback` |
-| `GOOGLE_CALENDAR_ID` | Calendar ID to operate on | `primary` |
+| `GEMINI_API_KEY` | Gemini / Google AI Studio API key | — |
+| `SLACK_BOT_TOKEN` | Slack Bot OAuth token (`xoxb-…`) | — |
+| `SLACK_SIGNING_SECRET` | Slack app signing secret | — |
+| `GOOGLE_CLOUD_PROJECT` | GCP project ID (enables Cloud Monitoring/Trace export) | — |
+| `GCP_CREDENTIALS_JSON_BASE64` | Base64-encoded `credentials.json` | — |
+| `GCP_TOKEN_JSON_BASE64` | Base64-encoded `token.json` | — |
+| `CHAT_BACKEND` | Chat backend selector | `"slack"` |
 
-Credentials must never be hardcoded. Use environment variables for all secrets, especially in CI.
+Credentials must never be hardcoded. Use environment variables or Google Secret Manager for all secrets, especially in CI.
